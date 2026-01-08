@@ -9,7 +9,7 @@ import { Button, Card } from '@/components/ui'
 import { VoiceButton } from '@/components/voice/VoiceButton'
 import { LiveTranscript } from '@/components/voice/LiveTranscript'
 import { useAIExplain } from '@/hooks/useAI'
-import { useKarma } from '@/hooks/useKarma'
+import { useCurio } from '@/hooks/useCurio'
 import { useBacklog } from '@/hooks/useBacklog'
 import { getRandomEncouragement, CURIOSITY_ENCOURAGEMENTS, LEARNING_REMINDERS } from '@/constants/microcopy'
 
@@ -24,7 +24,7 @@ export default function AskPage() {
   const [addedTopic, setAddedTopic] = useState('')
 
   const { explain, response, isLoading: isExplaining, reset: resetExplanation } = useAIExplain()
-  const { addKarma, recentKarma } = useKarma()
+  const { addCurio, recentCurio } = useCurio()
   const { addItem, isAdding } = useBacklog()
 
   const handleTranscriptUpdate = useCallback((text: string, isFinal: boolean) => {
@@ -37,8 +37,8 @@ export default function AskPage() {
   const handleAsk = async (question: string) => {
     setShowAnswer(true)
     await explain(question)
-    // Award karma for asking
-    addKarma('question_asked')
+    // Award curio for asking
+    addCurio('question_asked')
   }
 
   const handleAddToBacklog = async () => {
@@ -74,14 +74,14 @@ export default function AskPage() {
     <PageContainer
       title="Ask Curio"
       headerRight={
-        recentKarma > 0 && (
+        recentCurio > 0 && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="flex items-center gap-1 rounded-full bg-karma-light px-3 py-1 text-sm font-medium text-karma-dark"
+            className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
           >
             <Sparkles className="h-4 w-4" />
-            +{recentKarma}
+            +{recentCurio}
           </motion.div>
         )
       }

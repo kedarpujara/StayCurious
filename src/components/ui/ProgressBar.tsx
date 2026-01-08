@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils/cn'
 
 export interface ProgressBarProps {
   value: number // 0-100
-  variant?: 'default' | 'success' | 'karma'
+  variant?: 'default' | 'success' | 'curio'
   animated?: boolean
   showLabel?: boolean
   size?: 'sm' | 'md' | 'lg'
@@ -24,7 +24,7 @@ export function ProgressBar({
   const variants = {
     default: 'bg-primary-500',
     success: 'bg-green-500',
-    karma: 'bg-gradient-to-r from-amber-400 to-amber-500',
+    curio: 'bg-gradient-to-r from-amber-400 to-amber-500',
   }
 
   const sizes = {

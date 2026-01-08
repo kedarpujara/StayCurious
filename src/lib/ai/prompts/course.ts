@@ -8,6 +8,26 @@ Guidelines:
 - Adjust depth and detail based on intensity level
 - Each section should flow naturally into the next
 
+CRITICAL - Markdown Formatting:
+- Use **bold** for key terms and important concepts
+- Add a BLANK LINE between every paragraph
+- Add a BLANK LINE before and after bullet lists
+- Add a BLANK LINE before and after numbered lists
+- Each list item should be on its own line
+- Keep paragraphs short (2-3 sentences max)
+- Use headers (## or ###) to organize subsections within content
+- Example of proper formatting:
+
+**Key concept here** is important because of X.
+
+Here's why it matters:
+
+- First point with explanation
+- Second point with details
+- Third point with context
+
+This leads us to understand that...
+
 CRITICAL - Comprehensive Coverage:
 - Before generating content, identify ALL major types, categories, or mechanisms within the topic
 - For natural phenomena: cover DIFFERENT causes (e.g., for waves: wind-driven, tidal/gravitational, seismic)

@@ -1,5 +1,7 @@
 export { useDeepgram } from './useDeepgram'
 export { useAIExplain, useAICourse, useAIQuiz } from './useAI'
-export { useKarma } from './useKarma'
+export { useCurio, useKarma } from './useCurio'
+export { useLeaderboard, useLeaderboardPosition } from './useLeaderboard'
+export { useCurioCircles, useCurioCircle } from './useCurioCircles'
 export { useBacklog } from './useBacklog'
 export { useAuth } from './useAuth'

@@ -5,15 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Sparkles, ArrowRight } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { Button, Card, ProgressBar } from '@/components/ui'
-import { getTitleForKarma, getNextTitle, getProgressToNextTitle } from '@/constants/titles'
+import { getTitleForCurio, getNextTitle, getProgressToNextTitle } from '@/constants/titles'
 import { cn } from '@/lib/utils/cn'
 
 interface CelebrationModalProps {
   isOpen: boolean
   onClose: () => void
   score: number
-  karmaEarned: number
-  totalKarma: number
+  curioEarned: number
+  totalCurio: number
   titleUpgraded: boolean
   newTitle?: string
   intensity?: string
@@ -24,8 +24,8 @@ export function CelebrationModal({
   isOpen,
   onClose,
   score,
-  karmaEarned,
-  totalKarma,
+  curioEarned,
+  totalCurio,
   titleUpgraded,
   newTitle,
   intensity,
@@ -92,9 +92,9 @@ export function CelebrationModal({
     }
   }, [isOpen])
 
-  const currentTitle = getTitleForKarma(totalKarma)
-  const nextTitle = getNextTitle(totalKarma)
-  const progress = getProgressToNextTitle(totalKarma)
+  const currentTitle = getTitleForCurio(totalCurio)
+  const nextTitle = getNextTitle(totalCurio)
+  const progress = getProgressToNextTitle(totalCurio)
 
   return (
     <AnimatePresence>
@@ -198,7 +198,7 @@ export function CelebrationModal({
                   <p className="text-sm text-slate-500 dark:text-slate-400">Quiz Score</p>
                 </div>
 
-                {/* Karma earned */}
+                {/* Curio earned */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -207,7 +207,7 @@ export function CelebrationModal({
                 >
                   <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span className="font-semibold text-amber-700 dark:text-amber-300">
-                    +{karmaEarned} Karma
+                    +{curioEarned} Curio
                   </span>
                 </motion.div>
 
@@ -240,9 +240,9 @@ export function CelebrationModal({
                         {progress.current}/{progress.required}
                       </span>
                     </div>
-                    <ProgressBar value={progress.percentage} variant="karma" />
+                    <ProgressBar value={progress.percentage} variant="curio" />
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {progress.required - progress.current} karma to {nextTitle.name}
+                      {progress.required - progress.current} Curio to {nextTitle.name}
                     </p>
                   </div>
                 )}

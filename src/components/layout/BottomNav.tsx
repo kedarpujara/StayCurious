@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Mic, List, BookOpen, User } from 'lucide-react'
+import { Mic, List, BookOpen, User, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const navItems = [
@@ -12,14 +12,14 @@ const navItems = [
     icon: Mic,
   },
   {
-    href: '/backlog',
-    label: 'Backlog',
-    icon: List,
-  },
-  {
     href: '/learn',
     label: 'Learn',
     icon: BookOpen,
+  },
+  {
+    href: '/leaderboard',
+    label: 'Compete',
+    icon: Trophy,
   },
   {
     href: '/profile',

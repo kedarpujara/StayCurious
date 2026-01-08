@@ -9,10 +9,10 @@ import { PageContainer } from '@/components/layout'
 import { Button, Card, ProgressBar } from '@/components/ui'
 import { CelebrationModal } from '@/components/celebration'
 import { useAIQuiz } from '@/hooks/useAI'
-import { useKarma } from '@/hooks/useKarma'
+import { useCurio } from '@/hooks/useCurio'
 import { createClient } from '@/lib/supabase/client'
 import { getRandomEncouragement, QUIZ_ENCOURAGEMENTS } from '@/constants/microcopy'
-import type { Quiz, QuizQuestion, KarmaResult } from '@/types'
+import type { Quiz, QuizQuestion, CurioResult } from '@/types'
 import { cn } from '@/lib/utils/cn'
 
 type QuizPhase = 'loading' | 'question' | 'feedback' | 'results'
@@ -35,10 +35,10 @@ export default function QuizPage() {
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [courseInfo, setCourseInfo] = useState<CourseInfo | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
-  const [karmaResult, setKarmaResult] = useState<KarmaResult | null>(null)
+  const [curioResult, setCurioResult] = useState<CurioResult | null>(null)
 
   const { generateQuiz, isLoading: isGenerating } = useAIQuiz()
-  const { addKarma, karma } = useKarma()
+  const { addCurio, curio } = useCurio()
 
   // Fetch or generate quiz
   useEffect(() => {
@@ -138,15 +138,14 @@ export default function QuizPage() {
           .eq('user_id', user.id)
       }
 
-      // Award karma and show celebration if passed
+      // Award curio and show celebration if passed
       if (didPass) {
-        const result = await addKarma('quiz_passed', {
-          intensity: courseInfo?.intensity,
-          timeBudget: courseInfo?.time_budget,
+        const result = await addCurio('quiz_passed', {
+          intensity: courseInfo?.intensity as 'skim' | 'solid' | 'deep' | undefined,
           skipLevelUpToast: true, // CelebrationModal handles level-up display
         })
         if (result) {
-          setKarmaResult(result)
+          setCurioResult(result)
         }
         setShowCelebration(true)
       }
@@ -198,10 +197,10 @@ export default function QuizPage() {
             isOpen={showCelebration}
             onClose={handleCelebrationClose}
             score={scorePercent}
-            karmaEarned={karmaResult?.karmaEarned || 10}
-            totalKarma={karmaResult?.karma || karma}
-            titleUpgraded={karmaResult?.titleUpgraded || false}
-            newTitle={karmaResult?.newTitle}
+            curioEarned={curioResult?.curioEarned || 10}
+            totalCurio={curioResult?.curio || curio}
+            titleUpgraded={curioResult?.titleUpgraded || false}
+            newTitle={curioResult?.newTitle}
             intensity={courseInfo?.intensity}
             timeBudget={courseInfo?.time_budget}
           />

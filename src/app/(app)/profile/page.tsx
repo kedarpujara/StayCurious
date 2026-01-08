@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import Image from 'next/image'
 import { PageContainer } from '@/components/layout'
 import { Card, Button, ProgressBar } from '@/components/ui'
-import { useAuth, useKarma } from '@/hooks'
+import { useAuth, useCurio } from '@/hooks'
 import { useTheme } from '@/contexts/ThemeContext'
 import { createClient } from '@/lib/supabase/client'
 import { getProgressToNextTitle, getNextTitle } from '@/constants/titles'
@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils/cn'
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
-  const { karma, title, isLoading: karmaLoading } = useKarma()
+  const { curio, title, isLoading: curioLoading } = useCurio()
   const { theme, setTheme } = useTheme()
   const supabase = createClient()
 
@@ -74,8 +74,8 @@ export default function ProfilePage() {
     },
   })
 
-  const nextTitle = getNextTitle(karma)
-  const titleProgress = getProgressToNextTitle(karma)
+  const nextTitle = getNextTitle(curio)
+  const titleProgress = getProgressToNextTitle(curio)
 
   const earnedBadgeIds = new Set(earnedBadges.map((b: any) => b.badge_id))
 
@@ -119,14 +119,14 @@ export default function ProfilePage() {
         <p className="text-slate-500 dark:text-slate-400">{user?.email}</p>
       </motion.div>
 
-      {/* Title & Karma */}
+      {/* Title & Curio */}
       <Card variant="highlighted" className="mb-6">
         <div className="text-center">
           <p className="text-sm text-primary-600 dark:text-primary-400">Current Title</p>
           <h2 className="mb-1 text-2xl font-bold text-slate-900 dark:text-white">{title}</h2>
-          <div className="flex items-center justify-center gap-2 text-karma-dark">
+          <div className="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400">
             <Sparkles className="h-5 w-5" />
-            <span className="text-lg font-semibold">{karma} Karma</span>
+            <span className="text-lg font-semibold">{curio} Curio</span>
           </div>
         </div>
 
@@ -138,7 +138,7 @@ export default function ProfilePage() {
                 {titleProgress.current}/{titleProgress.required}
               </span>
             </div>
-            <ProgressBar value={titleProgress.percentage} variant="karma" />
+            <ProgressBar value={titleProgress.percentage} variant="curio" />
           </div>
         )}
       </Card>

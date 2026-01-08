@@ -52,12 +52,12 @@ export const QUIZ_ENCOURAGEMENTS = {
   ],
 }
 
-export const KARMA_MESSAGES = {
-  question_asked: "+1 Curiosity Karma",
-  course_started: "+5 Learning Karma",
-  section_completed: "+3 Progress Karma",
-  quiz_passed: "+10 Achievement Karma",
-  streak_maintained: "+2 Dedication Karma",
+export const CURIO_MESSAGES = {
+  question_asked: "+1 Curio",
+  course_started: "+5 Curio",
+  section_completed: "+3 Curio",
+  quiz_passed: "Curio earned!",
+  streak_maintained: "+2 Curio",
 }
 
 export const TITLE_DESCRIPTIONS: Record<string, string> = {
@@ -76,3 +76,7 @@ export const TITLE_DESCRIPTIONS: Record<string, string> = {
 export function getRandomEncouragement(array: string[]): string {
   return array[Math.floor(Math.random() * array.length)]
 }
+
+// Legacy alias for backward compatibility
+/** @deprecated Use CURIO_MESSAGES instead */
+export const KARMA_MESSAGES = CURIO_MESSAGES

@@ -47,25 +47,88 @@ export interface TranscriptResult {
   confidence: number
 }
 
-// Gamification Types
-export type KarmaAction =
+// Gamification Types - Curio Economy
+export type CurioAction =
   | 'question_asked'
   | 'course_started'
   | 'section_completed'
+  | 'lesson_completed'
   | 'quiz_passed'
   | 'streak_maintained'
 
-export interface KarmaResult {
-  karma: number
-  karmaEarned: number
+export interface CurioResult {
+  curio: number
+  curioEarned: number
   newTitle?: string
   titleUpgraded: boolean
+  breakdown?: {
+    difficultyBase: number
+    attemptMultiplier: string
+    attemptPenalty: number
+    perfectBonus: number
+  }
 }
 
 export interface BadgeRequirement {
-  type: 'questions_asked' | 'courses_completed' | 'streak_days' | 'quiz_perfect_score' | 'karma_points' | 'category_mastery'
+  type: 'questions_asked' | 'courses_completed' | 'streak_days' | 'quiz_perfect_score' | 'curio_points' | 'category_mastery'
   count: number
   category?: string
+}
+
+// Leaderboard Types
+export interface LeaderboardEntry {
+  rank: number
+  userId: string
+  displayName: string | null
+  avatarUrl: string | null
+  monthlyCurio: number
+  currentTitle: string
+  isCurrentUser?: boolean
+}
+
+export interface UserLeaderboardPosition {
+  rank: number | null
+  totalUsers: number
+  percentile: number | null
+  monthlyCurio: number
+  isTopTenPercent: boolean
+}
+
+// Curio Circles Types
+export interface CurioCircle {
+  id: string
+  name: string
+  description: string | null
+  inviteCode: string
+  createdBy: string
+  maxMembers: number
+  memberCount?: number
+  createdAt: string
+}
+
+export interface CurioCircleMember {
+  id: string
+  circleId: string
+  userId: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+  user?: {
+    displayName: string | null
+    avatarUrl: string | null
+    currentTitle: string
+  }
+}
+
+export interface CircleLeaderboardEntry extends LeaderboardEntry {
+  role: 'owner' | 'admin' | 'member'
+}
+
+// Pricing Eligibility
+export interface PricingEligibility {
+  isEligible: boolean
+  eligibleUntil: string | null
+  currentPercentile: number | null
+  requiredPercentile: number // 10 = top 10%
 }
 
 // UI Types
@@ -149,5 +212,49 @@ export interface DailyQuizResult {
   totalQuestions: number
   unlocked: boolean
   streak: number
-  karmaEarned: number
+  curioEarned: number
+}
+
+// Legacy aliases for backward compatibility during migration
+/** @deprecated Use CurioAction instead */
+export type KarmaAction = CurioAction
+/** @deprecated Use CurioResult instead */
+export type KarmaResult = CurioResult & { karma: number; karmaEarned: number }
+
+// Chat-First Learning Types
+export type ChatMode = 'guided' | 'clarification'
+export type StepKind = 'intro' | 'content' | 'check' | 'summary'
+export type LessonChatAction = 'start' | 'next' | 'clarify' | 'example'
+
+export interface ChatState {
+  mode: ChatMode
+  currentSectionIndex: number
+  currentStepIndex: number
+  messagesCount: number
+  lastStepKind: StepKind
+  lastUpdated: string
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'assistant' | 'user'
+  content: string
+  type: 'lesson' | 'clarification' | 'action'
+  timestamp: Date
+}
+
+export interface LessonStep {
+  kind: StepKind
+  content: string
+  sectionIndex: number
+  stepIndex: number
+}
+
+export interface LessonChatRequest {
+  courseId: string
+  action: LessonChatAction
+  sectionIndex: number
+  stepIndex: number
+  userMessage?: string
+  conversationHistory: { role: 'user' | 'assistant'; content: string }[]
 }

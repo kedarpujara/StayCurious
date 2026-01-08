@@ -33,7 +33,7 @@ export default function LoginPage() {
       </div>
 
       {/* Title */}
-      <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white">Welcome to Curio</h1>
+      <h1 className="mb-2 text-3xl font-bold text-slate-900 dark:text-white">Welcome to StayCurious</h1>
       <p className="mb-12 text-center text-slate-600 dark:text-slate-400">
         Your voice-first learning companion
       </p>

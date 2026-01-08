@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, Clock, Play, Zap, BookOpen, Brain, Layers, Target, Lightbulb, HelpCircle, Sparkles, FileText } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Clock, Play, Zap, BookOpen, Brain, Layers, Target, Lightbulb, HelpCircle, Sparkles, FileText, MessageSquare } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageContainer } from '@/components/layout'
 import { Button, Card, ProgressBar } from '@/components/ui'
 import { CourseChat } from '@/components/course'
 import { useAICourse } from '@/hooks/useAI'
-import { useKarma } from '@/hooks/useKarma'
+import { useCurio } from '@/hooks/useCurio'
 import { useCourseGeneration } from '@/contexts/CourseGenerationContext'
 import { createClient } from '@/lib/supabase/client'
 import { getRandomEncouragement, SECTION_COMPLETIONS } from '@/constants/microcopy'
@@ -36,7 +36,7 @@ export default function LearnTopicPage() {
   const [encouragement, setEncouragement] = useState('')
 
   const { error: generationError } = useAICourse()
-  const { addKarma } = useKarma()
+  const { addCurio } = useCurio()
   const { startBackgroundGeneration } = useCourseGeneration()
 
   // Fetch existing course or backlog item
@@ -203,7 +203,7 @@ export default function LearnTopicPage() {
 
     // Start generation in background and navigate away immediately
     startBackgroundGeneration(topic, intensity, timeBudget, backlogItemId || undefined)
-    addKarma('course_started')
+    addCurio('course_started')
 
     // Navigate user to home so they can explore while course generates
     router.push('/')
@@ -239,8 +239,8 @@ export default function LearnTopicPage() {
       }
     }
 
-    // Award karma
-    addKarma('section_completed')
+    // Award curio
+    addCurio('section_completed')
 
     // Clear encouragement after a delay
     setTimeout(() => setEncouragement(''), 3000)
@@ -536,9 +536,19 @@ export default function LearnTopicPage() {
       title={existingCourse?.topic || displayTopic}
       showBack
       headerRight={
-        <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400">
-          <Clock className="h-4 w-4" />
-          {content.totalEstimatedMinutes}m
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push(`/learn/${courseId}/chat`)}
+            className="flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+            title="Switch to Chat Mode"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Chat
+          </button>
+          <div className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400">
+            <Clock className="h-4 w-4" />
+            {content.totalEstimatedMinutes}m
+          </div>
         </div>
       }
     >
