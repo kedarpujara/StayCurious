@@ -15,7 +15,7 @@ export interface Database {
           email: string
           display_name: string | null
           avatar_url: string | null
-          karma_points: number
+          curio_points: number
           current_title: string
           current_streak: number
           longest_streak: number
@@ -26,6 +26,8 @@ export interface Database {
           daily_curio_streak: number
           longest_daily_streak: number
           last_daily_completion_date: string | null
+          elite_pricing_eligible: boolean
+          elite_pricing_eligible_until: string | null
           created_at: string
           updated_at: string
         }
@@ -34,7 +36,7 @@ export interface Database {
           email: string
           display_name?: string | null
           avatar_url?: string | null
-          karma_points?: number
+          curio_points?: number
           current_title?: string
           current_streak?: number
           longest_streak?: number
@@ -45,6 +47,8 @@ export interface Database {
           daily_curio_streak?: number
           longest_daily_streak?: number
           last_daily_completion_date?: string | null
+          elite_pricing_eligible?: boolean
+          elite_pricing_eligible_until?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -53,7 +57,7 @@ export interface Database {
           email?: string
           display_name?: string | null
           avatar_url?: string | null
-          karma_points?: number
+          curio_points?: number
           current_title?: string
           current_streak?: number
           longest_streak?: number
@@ -64,6 +68,8 @@ export interface Database {
           daily_curio_streak?: number
           longest_daily_streak?: number
           last_daily_completion_date?: string | null
+          elite_pricing_eligible?: boolean
+          elite_pricing_eligible_until?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -76,7 +82,7 @@ export interface Database {
           question_category: string | null
           ai_provider: string
           response_length: number | null
-          karma_earned: number
+          curio_earned: number
           created_at: string
         }
         Insert: {
@@ -86,7 +92,7 @@ export interface Database {
           question_category?: string | null
           ai_provider: string
           response_length?: number | null
-          karma_earned?: number
+          curio_earned?: number
           created_at?: string
         }
         Update: {
@@ -96,7 +102,7 @@ export interface Database {
           question_category?: string | null
           ai_provider?: string
           response_length?: number | null
-          karma_earned?: number
+          curio_earned?: number
           created_at?: string
         }
       }
@@ -241,7 +247,7 @@ export interface Database {
           category: 'curiosity' | 'learning' | 'streak' | 'milestone'
           requirements: Json
           rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-          karma_reward: number
+          curio_reward: number
         }
         Insert: {
           id: string
@@ -251,7 +257,7 @@ export interface Database {
           category: 'curiosity' | 'learning' | 'streak' | 'milestone'
           requirements: Json
           rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-          karma_reward?: number
+          curio_reward?: number
         }
         Update: {
           id?: string
@@ -261,7 +267,7 @@ export interface Database {
           category?: 'curiosity' | 'learning' | 'streak' | 'milestone'
           requirements?: Json
           rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-          karma_reward?: number
+          curio_reward?: number
         }
       }
       user_badges: {
@@ -289,21 +295,21 @@ export interface Database {
           id: string
           name: string
           description: string | null
-          karma_required: number
+          curio_required: number
           tier: number
         }
         Insert: {
           id: string
           name: string
           description?: string | null
-          karma_required: number
+          curio_required: number
           tier: number
         }
         Update: {
           id?: string
           name?: string
           description?: string | null
-          karma_required?: number
+          curio_required?: number
           tier?: number
         }
       }
@@ -316,6 +322,7 @@ export interface Database {
           difficulty: 'beginner' | 'intermediate' | 'advanced'
           estimated_minutes: number
           display_order: number
+          subcategory_id: string | null
           created_at: string
         }
         Insert: {
@@ -326,6 +333,7 @@ export interface Database {
           difficulty: 'beginner' | 'intermediate' | 'advanced'
           estimated_minutes: number
           display_order: number
+          subcategory_id?: string | null
           created_at?: string
         }
         Update: {
@@ -335,6 +343,42 @@ export interface Database {
           category?: string
           difficulty?: 'beginner' | 'intermediate' | 'advanced'
           estimated_minutes?: number
+          display_order?: number
+          subcategory_id?: string | null
+          created_at?: string
+        }
+      }
+      almanac_categories: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          description: string | null
+          icon: string | null
+          color: string | null
+          parent_id: string | null
+          display_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          description?: string | null
+          icon?: string | null
+          color?: string | null
+          parent_id?: string | null
+          display_order: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          description?: string | null
+          icon?: string | null
+          color?: string | null
+          parent_id?: string | null
           display_order?: number
           created_at?: string
         }
@@ -435,18 +479,70 @@ export interface Database {
           completed_at?: string | null
         }
       }
+      curio_circles: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          invite_code: string
+          created_by: string
+          max_members: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          invite_code: string
+          created_by: string
+          max_members?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          invite_code?: string
+          created_by?: string
+          max_members?: number
+          created_at?: string
+        }
+      }
+      curio_circle_members: {
+        Row: {
+          id: string
+          circle_id: string
+          user_id: string
+          role: 'owner' | 'admin' | 'member'
+          joined_at: string
+        }
+        Insert: {
+          id?: string
+          circle_id: string
+          user_id: string
+          role?: 'owner' | 'admin' | 'member'
+          joined_at?: string
+        }
+        Update: {
+          id?: string
+          circle_id?: string
+          user_id?: string
+          role?: 'owner' | 'admin' | 'member'
+          joined_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      update_user_karma: {
+      update_user_curio: {
         Args: {
           p_user_id: string
-          p_karma_amount: number
+          p_curio_amount: number
         }
         Returns: {
-          new_karma: number
+          new_curio: number
           new_title: string
           title_upgraded: boolean
         }[]
@@ -462,8 +558,64 @@ export interface Database {
           success: boolean
           unlocked: boolean
           new_streak: number
-          karma_earned: number
+          curio_earned: number
         }[]
+      }
+      get_user_monthly_curio: {
+        Args: {
+          p_user_id: string
+          p_year?: number
+          p_month?: number
+        }
+        Returns: number
+      }
+      get_monthly_leaderboard: {
+        Args: {
+          p_limit?: number
+          p_year?: number
+          p_month?: number
+        }
+        Returns: {
+          rank: number
+          user_id: string
+          display_name: string
+          avatar_url: string
+          monthly_curio: number
+          current_title: string
+        }[]
+      }
+      get_user_leaderboard_position: {
+        Args: {
+          p_user_id: string
+          p_year?: number
+          p_month?: number
+        }
+        Returns: {
+          rank: number
+          total_users: number
+          percentile: number
+          monthly_curio: number
+        }[]
+      }
+      get_circle_leaderboard: {
+        Args: {
+          p_circle_id: string
+          p_year?: number
+          p_month?: number
+        }
+        Returns: {
+          rank: number
+          user_id: string
+          display_name: string
+          avatar_url: string
+          monthly_curio: number
+          current_title: string
+          role: string
+        }[]
+      }
+      generate_invite_code: {
+        Args: Record<string, never>
+        Returns: string
       }
     }
     Enums: {

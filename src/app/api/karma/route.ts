@@ -6,6 +6,7 @@ const KARMA_AMOUNTS: Record<KarmaAction, number> = {
   question_asked: 1,
   course_started: 5,
   section_completed: 3,
+  lesson_completed: 5,
   quiz_passed: 10, // Base amount, can be scaled
   streak_maintained: 2,
 }
@@ -71,9 +72,12 @@ export async function POST(request: Request) {
     }
 
     const result = data[0]
-    const response: KarmaResult = {
+    // Return both karma (legacy) and curio (new) fields for compatibility
+    const response = {
       karma: result.new_karma,
       karmaEarned: karmaAmount,
+      curio: result.new_karma,
+      curioEarned: karmaAmount,
       newTitle: result.title_upgraded ? result.new_title : undefined,
       titleUpgraded: result.title_upgraded,
     }

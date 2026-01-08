@@ -9,13 +9,13 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Curio - Voice-First Learning Companion',
+  title: 'StayCurious - Voice-First Learning Companion',
   description: 'Ask questions, spark curiosity, and learn for real. A voice-first learning app for curious minds.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Curio',
+    title: 'StayCurious',
   },
 }
 

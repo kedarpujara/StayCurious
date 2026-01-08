@@ -11,7 +11,7 @@ export default function HomePage() {
         </div>
 
         <h1 className="mb-4 text-center text-4xl font-bold text-slate-900">
-          Curio
+          StayCurious
         </h1>
 
         <p className="mb-8 max-w-sm text-center text-lg text-slate-600">
@@ -59,14 +59,14 @@ export default function HomePage() {
 
           {/* Feature 3 */}
           <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-karma-light">
-              <Sparkles className="h-6 w-6 text-karma-dark" />
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+              <Sparkles className="h-6 w-6 text-amber-600" />
             </div>
             <h3 className="mb-2 text-lg font-semibold text-slate-900">
               Grow your curious mind
             </h3>
             <p className="text-slate-600">
-              Earn karma, collect badges, and watch your learner identity evolve.
+              Earn Curio, collect badges, and watch your learner identity evolve.
             </p>
           </div>
         </div>

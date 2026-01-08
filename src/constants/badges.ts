@@ -7,7 +7,7 @@ export interface BadgeDefinition {
   category: 'curiosity' | 'learning' | 'streak' | 'milestone'
   requirements: BadgeRequirement
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-  karmaReward: number
+  curioReward: number
   icon: string
 }
 
@@ -20,7 +20,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'curiosity',
     requirements: { type: 'questions_asked', count: 1 },
     rarity: 'common',
-    karmaReward: 5,
+    curioReward: 5,
     icon: '💡',
   },
   {
@@ -30,7 +30,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'curiosity',
     requirements: { type: 'questions_asked', count: 10 },
     rarity: 'common',
-    karmaReward: 15,
+    curioReward: 15,
     icon: '🤔',
   },
   {
@@ -40,7 +40,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'curiosity',
     requirements: { type: 'questions_asked', count: 50 },
     rarity: 'uncommon',
-    karmaReward: 50,
+    curioReward: 50,
     icon: '❓',
   },
   {
@@ -50,7 +50,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'curiosity',
     requirements: { type: 'questions_asked', count: 100 },
     rarity: 'rare',
-    karmaReward: 100,
+    curioReward: 100,
     icon: '🔮',
   },
 
@@ -62,7 +62,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'courses_completed', count: 1 },
     rarity: 'common',
-    karmaReward: 20,
+    curioReward: 20,
     icon: '📚',
   },
   {
@@ -72,7 +72,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'courses_completed', count: 5 },
     rarity: 'uncommon',
-    karmaReward: 50,
+    curioReward: 50,
     icon: '🎓',
   },
   {
@@ -82,7 +82,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'courses_completed', count: 10 },
     rarity: 'rare',
-    karmaReward: 100,
+    curioReward: 100,
     icon: '🏛️',
   },
   {
@@ -92,7 +92,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'courses_completed', count: 25 },
     rarity: 'epic',
-    karmaReward: 250,
+    curioReward: 250,
     icon: '📜',
   },
 
@@ -104,7 +104,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'quiz_perfect_score', count: 1 },
     rarity: 'uncommon',
-    karmaReward: 25,
+    curioReward: 25,
     icon: '💯',
   },
   {
@@ -114,7 +114,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'quiz_perfect_score', count: 5 },
     rarity: 'rare',
-    karmaReward: 75,
+    curioReward: 75,
     icon: '🏆',
   },
 
@@ -126,7 +126,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'streak',
     requirements: { type: 'streak_days', count: 3 },
     rarity: 'common',
-    karmaReward: 10,
+    curioReward: 10,
     icon: '🔥',
   },
   {
@@ -136,7 +136,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'streak',
     requirements: { type: 'streak_days', count: 7 },
     rarity: 'uncommon',
-    karmaReward: 35,
+    curioReward: 35,
     icon: '⚡',
   },
   {
@@ -146,39 +146,39 @@ export const BADGES: BadgeDefinition[] = [
     category: 'streak',
     requirements: { type: 'streak_days', count: 30 },
     rarity: 'epic',
-    karmaReward: 150,
+    curioReward: 150,
     icon: '👑',
   },
 
   // Milestone badges
   {
-    id: 'karma_100',
+    id: 'curio_100',
     name: 'Rising Star',
-    description: 'Earned 100 karma points',
+    description: 'Earned 100 Curio',
     category: 'milestone',
-    requirements: { type: 'karma_points', count: 100 },
+    requirements: { type: 'curio_points', count: 100 },
     rarity: 'common',
-    karmaReward: 0, // No reward for karma milestone (would be circular)
+    curioReward: 0, // No reward for curio milestone (would be circular)
     icon: '⭐',
   },
   {
-    id: 'karma_500',
+    id: 'curio_500',
     name: 'Knowledge Enthusiast',
-    description: 'Earned 500 karma points',
+    description: 'Earned 500 Curio',
     category: 'milestone',
-    requirements: { type: 'karma_points', count: 500 },
+    requirements: { type: 'curio_points', count: 500 },
     rarity: 'uncommon',
-    karmaReward: 0,
+    curioReward: 0,
     icon: '🌟',
   },
   {
-    id: 'karma_1000',
+    id: 'curio_1000',
     name: 'Wisdom Seeker',
-    description: 'Earned 1000 karma points',
+    description: 'Earned 1000 Curio',
     category: 'milestone',
-    requirements: { type: 'karma_points', count: 1000 },
+    requirements: { type: 'curio_points', count: 1000 },
     rarity: 'rare',
-    karmaReward: 0,
+    curioReward: 0,
     icon: '💫',
   },
 
@@ -190,7 +190,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'category_mastery', count: 5, category: 'science' },
     rarity: 'rare',
-    karmaReward: 75,
+    curioReward: 75,
     icon: '🔬',
   },
   {
@@ -200,7 +200,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'category_mastery', count: 5, category: 'history' },
     rarity: 'rare',
-    karmaReward: 75,
+    curioReward: 75,
     icon: '🏺',
   },
   {
@@ -210,7 +210,7 @@ export const BADGES: BadgeDefinition[] = [
     category: 'learning',
     requirements: { type: 'category_mastery', count: 5, category: 'philosophy' },
     rarity: 'rare',
-    karmaReward: 75,
+    curioReward: 75,
     icon: '🦉',
   },
 ]

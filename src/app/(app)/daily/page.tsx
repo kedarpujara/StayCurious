@@ -403,7 +403,7 @@ export default function DailyPage() {
       score: status?.score || 0,
       unlocked: status?.unlocked || false,
       streak: status?.streak || 0,
-      karmaEarned: 0,
+      curioEarned: 0,
     }
     const passed = displayResults.unlocked
 
@@ -469,13 +469,13 @@ export default function DailyPage() {
                 Day Streak
               </p>
             </div>
-            {displayResults.karmaEarned > 0 && (
+            {displayResults.curioEarned > 0 && (
               <div>
                 <p className="text-2xl font-bold text-primary-500">
-                  +{displayResults.karmaEarned}
+                  +{displayResults.curioEarned}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Karma
+                  Curio
                 </p>
               </div>
             )}

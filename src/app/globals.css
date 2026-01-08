@@ -74,12 +74,12 @@
     }
   }
 
-  /* Karma sparkle effect */
-  .karma-sparkle {
+  /* Curio sparkle effect */
+  .curio-sparkle {
     @apply relative inline-block;
   }
 
-  .karma-sparkle::after {
+  .curio-sparkle::after {
     content: '✨';
     @apply absolute -top-2 -right-2 text-xs;
     animation: sparkle 0.5s ease-out forwards;
