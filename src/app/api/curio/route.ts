@@ -1,17 +1,22 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { CurioAction, CurioResult, Intensity } from '@/types'
-import { calculateQuizCurio, CURIO_BASE_AMOUNTS } from '@/lib/curio'
+import {
+  calculateQuizCurio,
+  mcurioToCurio,
+  MCURIO_PER_CURIO,
+} from '@/lib/curio'
 
 /**
- * Base Curio amounts for non-quiz actions
+ * Base mCurio amounts for non-quiz actions (in mCurio)
+ * 1 Curio = 1000 mCurio
  */
-const CURIO_AMOUNTS: Record<Exclude<CurioAction, 'quiz_passed'>, number> = {
-  question_asked: 1,
-  course_started: 5,
-  section_completed: 3,
-  lesson_completed: 5,
-  streak_maintained: 2,
+const MCURIO_AMOUNTS: Record<Exclude<CurioAction, 'quiz_passed'>, number> = {
+  question_asked: 1_000,      // 1 Curio
+  course_started: 5_000,      // 5 Curio
+  section_completed: 3_000,   // 3 Curio
+  lesson_completed: 5_000,    // 5 Curio
+  streak_maintained: 2_000,   // 2 Curio
 }
 
 interface CurioRequestBody {
@@ -20,6 +25,29 @@ interface CurioRequestBody {
   intensity?: Intensity
   quizScore?: number
   attemptNumber?: number
+  courseId?: string // Used to track daily completions
+}
+
+/**
+ * Get the number of courses a user has completed today (before this one)
+ */
+async function getDailyCompletionCount(supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never, userId: string): Promise<number> {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const { count, error } = await supabase
+    .from('learning_progress')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'completed')
+    .gte('completed_at', today.toISOString())
+
+  if (error) {
+    console.error('Error getting daily completion count:', error)
+    return 3 // Default to no bonus on error
+  }
+
+  return count || 0
 }
 
 export async function POST(request: Request) {
@@ -45,7 +73,7 @@ export async function POST(request: Request) {
     let breakdown: CurioResult['breakdown'] | undefined
 
     if (action === 'quiz_passed') {
-      // Calculate curio using the new attempt-based system
+      // Calculate curio using the new attempt-based system with daily bonus
       if (!intensity) {
         return NextResponse.json(
           { error: 'Missing intensity for quiz_passed action' },
@@ -53,17 +81,32 @@ export async function POST(request: Request) {
         )
       }
 
+      // Get how many courses completed today (before this one)
+      const completedToday = await getDailyCompletionCount(supabase, user.id)
+      // This will be the Nth course completed today (1-indexed)
+      const dailyCourseNumber = completedToday + 1
+
       const calculation = calculateQuizCurio({
         intensity,
         quizScore: quizScore ?? 0,
         attemptNumber: attemptNumber ?? 1,
+        dailyCourseNumber,
       })
 
       curioAmount = calculation.finalCurio
       breakdown = calculation.breakdown
+
+      console.log('[Curio] Quiz completion:', {
+        intensity,
+        quizScore,
+        attemptNumber,
+        dailyCourseNumber,
+        curioAmount,
+        breakdown,
+      })
     } else {
       // Use fixed amounts for other actions
-      curioAmount = CURIO_AMOUNTS[action]
+      curioAmount = MCURIO_AMOUNTS[action]
     }
 
     // Update user curio and check for title upgrade
@@ -129,14 +172,19 @@ export async function GET() {
 
     const position = positionData?.[0]
 
+    // Convert mCurio to Curio for display
+    const curioDisplay = mcurioToCurio(userData.curio_points)
+
     return NextResponse.json({
-      curio: userData.curio_points,
+      curio: curioDisplay,
+      mcurio: userData.curio_points, // Raw mCurio value
       title: userData.current_title,
       leaderboard: position ? {
         rank: position.rank,
         totalUsers: position.total_users,
         percentile: position.percentile,
-        monthlyCurio: position.monthly_curio,
+        monthlyCurio: position.monthly_curio ? mcurioToCurio(position.monthly_curio) : 0,
+        monthlyMcurio: position.monthly_curio,
         isTopTenPercent: position.percentile !== null && position.percentile >= 90,
       } : null,
     })

@@ -21,13 +21,11 @@ export interface Database {
           longest_streak: number
           last_activity_date: string | null
           preferred_ai_provider: 'openai' | 'anthropic'
-          preferred_intensity: 'skim' | 'solid' | 'deep'
-          voice_enabled: boolean
           daily_curio_streak: number
           longest_daily_streak: number
           last_daily_completion_date: string | null
-          elite_pricing_eligible: boolean
-          elite_pricing_eligible_until: string | null
+          curio_club_eligible_until: string | null
+          curio_club_active: boolean
           created_at: string
           updated_at: string
         }
@@ -42,13 +40,11 @@ export interface Database {
           longest_streak?: number
           last_activity_date?: string | null
           preferred_ai_provider?: 'openai' | 'anthropic'
-          preferred_intensity?: 'skim' | 'solid' | 'deep'
-          voice_enabled?: boolean
           daily_curio_streak?: number
           longest_daily_streak?: number
           last_daily_completion_date?: string | null
-          elite_pricing_eligible?: boolean
-          elite_pricing_eligible_until?: string | null
+          curio_club_eligible_until?: string | null
+          curio_club_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -63,47 +59,13 @@ export interface Database {
           longest_streak?: number
           last_activity_date?: string | null
           preferred_ai_provider?: 'openai' | 'anthropic'
-          preferred_intensity?: 'skim' | 'solid' | 'deep'
-          voice_enabled?: boolean
           daily_curio_streak?: number
           longest_daily_streak?: number
           last_daily_completion_date?: string | null
-          elite_pricing_eligible?: boolean
-          elite_pricing_eligible_until?: string | null
+          curio_club_eligible_until?: string | null
+          curio_club_active?: boolean
           created_at?: string
           updated_at?: string
-        }
-      }
-      curiosity_logs: {
-        Row: {
-          id: string
-          user_id: string
-          question: string
-          question_category: string | null
-          ai_provider: string
-          response_length: number | null
-          curio_earned: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          question: string
-          question_category?: string | null
-          ai_provider: string
-          response_length?: number | null
-          curio_earned?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          question?: string
-          question_category?: string | null
-          ai_provider?: string
-          response_length?: number | null
-          curio_earned?: number
-          created_at?: string
         }
       }
       backlog_items: {
@@ -238,81 +200,6 @@ export interface Database {
           completed_at?: string | null
         }
       }
-      badges: {
-        Row: {
-          id: string
-          name: string
-          description: string
-          icon_url: string | null
-          category: 'curiosity' | 'learning' | 'streak' | 'milestone'
-          requirements: Json
-          rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-          curio_reward: number
-        }
-        Insert: {
-          id: string
-          name: string
-          description: string
-          icon_url?: string | null
-          category: 'curiosity' | 'learning' | 'streak' | 'milestone'
-          requirements: Json
-          rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-          curio_reward?: number
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string
-          icon_url?: string | null
-          category?: 'curiosity' | 'learning' | 'streak' | 'milestone'
-          requirements?: Json
-          rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-          curio_reward?: number
-        }
-      }
-      user_badges: {
-        Row: {
-          id: string
-          user_id: string
-          badge_id: string
-          earned_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          badge_id: string
-          earned_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          badge_id?: string
-          earned_at?: string
-        }
-      }
-      titles: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          curio_required: number
-          tier: number
-        }
-        Insert: {
-          id: string
-          name: string
-          description?: string | null
-          curio_required: number
-          tier: number
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          curio_required?: number
-          tier?: number
-        }
-      }
       showcase_topics: {
         Row: {
           id: string
@@ -381,6 +268,174 @@ export interface Database {
           parent_id?: string | null
           display_order?: number
           created_at?: string
+        }
+      }
+      course_catalog: {
+        Row: {
+          id: string
+          topic: string
+          slug: string | null
+          source: 'almanac' | 'community' | 'generated'
+          creator_type: 'system' | 'user'
+          creator_id: string | null
+          showcase_topic_id: string | null
+          depth: 'quick' | 'solid' | 'deep'
+          content: Json
+          quiz_questions: Json
+          description: string | null
+          category: string | null
+          difficulty: 'beginner' | 'intermediate' | 'advanced' | null
+          estimated_minutes: number
+          section_count: number
+          stars_count: number
+          completions_count: number
+          avg_quiz_score: number | null
+          is_vetted: boolean
+          is_featured: boolean
+          is_published: boolean
+          ai_provider: string | null
+          generation_version: number
+          schema_version: number
+          trust_tier: 'vetted' | 'verified' | 'unverified'
+          quiz_difficulty: 'easy' | 'medium' | 'hard'
+          created_at: string
+          updated_at: string
+          published_at: string
+        }
+        Insert: {
+          id?: string
+          topic: string
+          slug?: string | null
+          source: 'almanac' | 'community' | 'generated'
+          creator_type?: 'system' | 'user'
+          creator_id?: string | null
+          showcase_topic_id?: string | null
+          depth: 'quick' | 'solid' | 'deep'
+          content: Json
+          quiz_questions: Json
+          description?: string | null
+          category?: string | null
+          difficulty?: 'beginner' | 'intermediate' | 'advanced' | null
+          estimated_minutes: number
+          section_count: number
+          stars_count?: number
+          completions_count?: number
+          avg_quiz_score?: number | null
+          is_vetted?: boolean
+          is_featured?: boolean
+          is_published?: boolean
+          ai_provider?: string | null
+          generation_version?: number
+          schema_version?: number
+          trust_tier?: 'vetted' | 'verified' | 'unverified'
+          quiz_difficulty?: 'easy' | 'medium' | 'hard'
+          created_at?: string
+          updated_at?: string
+          published_at?: string
+        }
+        Update: {
+          id?: string
+          topic?: string
+          slug?: string | null
+          source?: 'almanac' | 'community' | 'generated'
+          creator_type?: 'system' | 'user'
+          creator_id?: string | null
+          showcase_topic_id?: string | null
+          depth?: 'quick' | 'solid' | 'deep'
+          content?: Json
+          quiz_questions?: Json
+          description?: string | null
+          category?: string | null
+          difficulty?: 'beginner' | 'intermediate' | 'advanced' | null
+          estimated_minutes?: number
+          section_count?: number
+          stars_count?: number
+          completions_count?: number
+          avg_quiz_score?: number | null
+          is_vetted?: boolean
+          is_featured?: boolean
+          is_published?: boolean
+          ai_provider?: string | null
+          generation_version?: number
+          schema_version?: number
+          trust_tier?: 'vetted' | 'verified' | 'unverified'
+          quiz_difficulty?: 'easy' | 'medium' | 'hard'
+          created_at?: string
+          updated_at?: string
+          published_at?: string
+        }
+      }
+      course_stars: {
+        Row: {
+          id: string
+          user_id: string
+          course_id: string
+          starred_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          course_id: string
+          starred_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          course_id?: string
+          starred_at?: string
+        }
+      }
+      user_course_progress: {
+        Row: {
+          id: string
+          user_id: string
+          course_id: string
+          sections_completed: string[]
+          current_section: string | null
+          time_spent_seconds: number
+          quiz_completed: boolean
+          quiz_score: number | null
+          quiz_attempts: number
+          quiz_answers: Json | null
+          status: 'in_progress' | 'completed'
+          started_at: string
+          last_accessed_at: string
+          completed_at: string | null
+          chat_state: Json | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          course_id: string
+          sections_completed?: string[]
+          current_section?: string | null
+          time_spent_seconds?: number
+          quiz_completed?: boolean
+          quiz_score?: number | null
+          quiz_attempts?: number
+          quiz_answers?: Json | null
+          status?: 'in_progress' | 'completed'
+          started_at?: string
+          last_accessed_at?: string
+          completed_at?: string | null
+          chat_state?: Json | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          course_id?: string
+          sections_completed?: string[]
+          current_section?: string | null
+          time_spent_seconds?: number
+          quiz_completed?: boolean
+          quiz_score?: number | null
+          quiz_attempts?: number
+          quiz_answers?: Json | null
+          status?: 'in_progress' | 'completed'
+          started_at?: string
+          last_accessed_at?: string
+          completed_at?: string | null
+          chat_state?: string | null
         }
       }
       daily_topics: {
@@ -529,6 +584,172 @@ export interface Database {
           user_id?: string
           role?: 'owner' | 'admin' | 'member'
           joined_at?: string
+        }
+      }
+      curio_events: {
+        Row: {
+          id: string
+          user_id: string
+          event_type: string
+          mcurio_delta: number
+          breakdown: Json
+          course_id: string | null
+          quiz_attempt: number | null
+          topic_key: string | null
+          idempotency_key: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          event_type: string
+          mcurio_delta: number
+          breakdown: Json
+          course_id?: string | null
+          quiz_attempt?: number | null
+          topic_key?: string | null
+          idempotency_key?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          event_type?: string
+          mcurio_delta?: number
+          breakdown?: Json
+          course_id?: string | null
+          quiz_attempt?: number | null
+          topic_key?: string | null
+          idempotency_key?: string | null
+          created_at?: string
+        }
+      }
+      daily_checkins: {
+        Row: {
+          id: string
+          user_id: string
+          date_utc: string
+          mcurio_awarded: number
+          trigger_action: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          date_utc: string
+          mcurio_awarded: number
+          trigger_action: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          date_utc?: string
+          mcurio_awarded?: number
+          trigger_action?: string
+          created_at?: string
+        }
+      }
+      monthly_snapshots: {
+        Row: {
+          id: string
+          year: number
+          month: number
+          user_id: string
+          total_mcurio: number
+          quiz_passes: number
+          rank: number | null
+          percentile: number | null
+          is_eligible: boolean
+          is_curio_club: boolean
+          snapshot_at: string
+        }
+        Insert: {
+          id?: string
+          year: number
+          month: number
+          user_id: string
+          total_mcurio: number
+          quiz_passes?: number
+          rank?: number | null
+          percentile?: number | null
+          is_eligible?: boolean
+          is_curio_club?: boolean
+          snapshot_at?: string
+        }
+        Update: {
+          id?: string
+          year?: number
+          month?: number
+          user_id?: string
+          total_mcurio?: number
+          quiz_passes?: number
+          rank?: number | null
+          percentile?: number | null
+          is_eligible?: boolean
+          is_curio_club?: boolean
+          snapshot_at?: string
+        }
+      }
+      eli5_submissions: {
+        Row: {
+          id: string
+          user_id: string
+          course_id: string
+          concepts: Json
+          passed: boolean
+          mcurio_awarded: number
+          month_key: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          course_id: string
+          concepts: Json
+          passed: boolean
+          mcurio_awarded?: number
+          month_key: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          course_id?: string
+          concepts?: Json
+          passed?: boolean
+          mcurio_awarded?: number
+          month_key?: string
+          created_at?: string
+        }
+      }
+      topic_completions: {
+        Row: {
+          id: string
+          user_id: string
+          topic_key: string
+          month_key: string
+          completion_count: number
+          last_completed_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          topic_key: string
+          month_key: string
+          completion_count?: number
+          last_completed_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          topic_key?: string
+          month_key?: string
+          completion_count?: number
+          last_completed_at?: string
+          created_at?: string
         }
       }
     }

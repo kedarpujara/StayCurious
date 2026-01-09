@@ -8,6 +8,7 @@ import { PageContainer } from '@/components/layout'
 import { Card, Button } from '@/components/ui'
 import { LearnChatContainer } from '@/components/learn-chat'
 import { createClient } from '@/lib/supabase/client'
+import { toDisplayFormat } from '@/lib/blueprint'
 import type { CourseContent } from '@/types'
 
 export default function LearnChatPage() {
@@ -36,7 +37,7 @@ export default function LearnChatPage() {
 
       return {
         course,
-        content: course.content as CourseContent,
+        content: toDisplayFormat(course.content),
       }
     },
     enabled: !!courseId && courseId !== 'new',

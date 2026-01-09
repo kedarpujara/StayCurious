@@ -10,7 +10,7 @@ import { useAuth, useCurio } from '@/hooks'
 import { useTheme } from '@/contexts/ThemeContext'
 import { createClient } from '@/lib/supabase/client'
 import { getProgressToNextTitle, getNextTitle } from '@/constants/titles'
-import { getBadgeById, BADGES } from '@/constants/badges'
+import { BADGES } from '@/constants/badges'
 import { cn } from '@/lib/utils/cn'
 
 export default function ProfilePage() {
@@ -26,18 +26,19 @@ export default function ProfilePage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return null
 
-      // Get questions count
-      const { count: questionsCount } = await supabase
-        .from('curiosity_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', authUser.id)
-
-      // Get completed courses count
+      // Get completed courses count from learning_progress
       const { count: coursesCount } = await supabase
         .from('learning_progress')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', authUser.id)
         .eq('status', 'completed')
+
+      // Get quiz passes count from curio_events
+      const { count: quizPasses } = await supabase
+        .from('curio_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', authUser.id)
+        .eq('event_type', 'quiz_pass')
 
       // Get user profile
       const { data: profile } = await supabase
@@ -49,7 +50,7 @@ export default function ProfilePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profileData = profile as any
       return {
-        questionsAsked: questionsCount || 0,
+        quizzesPassed: quizPasses || 0,
         coursesCompleted: coursesCount || 0,
         currentStreak: profileData?.current_streak || 0,
         longestStreak: profileData?.longest_streak || 0,
@@ -57,22 +58,9 @@ export default function ProfilePage() {
     },
   })
 
-  // Fetch earned badges
-  const { data: earnedBadges = [] } = useQuery({
-    queryKey: ['user-badges'],
-    queryFn: async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return []
-
-      const { data } = await supabase
-        .from('user_badges')
-        .select('badge_id, earned_at')
-        .eq('user_id', authUser.id)
-        .order('earned_at', { ascending: false })
-
-      return data || []
-    },
-  })
+  // Badges are displayed from constants - no DB query needed
+  // In the future, we could track earned badges in curio_events
+  const earnedBadges: { badge_id: string }[] = []
 
   const nextTitle = getNextTitle(curio)
   const titleProgress = getProgressToNextTitle(curio)
@@ -152,9 +140,9 @@ export default function ProfilePage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                {stats?.questionsAsked || 0}
+                {stats?.quizzesPassed || 0}
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Questions Asked</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Quizzes Passed</p>
             </div>
           </div>
         </Card>

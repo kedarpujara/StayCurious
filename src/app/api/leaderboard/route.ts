@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { mcurioToCurio, CURIO_CLUB_PERCENTILE, CURIO_CLUB_MIN_QUIZZES } from '@/lib/curio'
 import type { LeaderboardEntry, UserLeaderboardPosition } from '@/types'
 
 /**
@@ -23,8 +24,8 @@ export async function GET(request: Request) {
     const year = searchParams.get('year') ? parseInt(searchParams.get('year')!, 10) : undefined
     const month = searchParams.get('month') ? parseInt(searchParams.get('month')!, 10) : undefined
 
-    // Get leaderboard
-    const { data: leaderboardData, error: leaderboardError } = await supabase.rpc('get_monthly_leaderboard', {
+    // Get leaderboard (use v2 function that reads from curio_events)
+    const { data: leaderboardData, error: leaderboardError } = await supabase.rpc('get_monthly_leaderboard_v2', {
       p_limit: limit,
       ...(year && { p_year: year }),
       ...(month && { p_month: month }),
@@ -35,8 +36,8 @@ export async function GET(request: Request) {
       throw leaderboardError
     }
 
-    // Get current user's position
-    const { data: positionData, error: positionError } = await supabase.rpc('get_user_leaderboard_position', {
+    // Get current user's position (use v2 function)
+    const { data: positionData, error: positionError } = await supabase.rpc('get_user_monthly_position_v2', {
       p_user_id: user.id,
       ...(year && { p_year: year }),
       ...(month && { p_month: month }),
@@ -46,22 +47,28 @@ export async function GET(request: Request) {
       console.error('Position error:', positionError)
     }
 
-    // Transform to LeaderboardEntry format
+    // Transform to LeaderboardEntry format (convert mCurio to Curio for display)
     const entries: LeaderboardEntry[] = (leaderboardData || []).map((entry: {
       rank: number
       user_id: string
       display_name: string | null
       avatar_url: string | null
-      monthly_curio: number
+      monthly_mcurio: number
+      quiz_count: number
       current_title: string
+      is_eligible: boolean
     }) => ({
       rank: entry.rank,
       userId: entry.user_id,
       displayName: entry.display_name,
       avatarUrl: entry.avatar_url,
-      monthlyCurio: entry.monthly_curio,
+      monthlyCurio: mcurioToCurio(entry.monthly_mcurio),
+      monthlyMcurio: entry.monthly_mcurio,
+      quizCount: entry.quiz_count,
       currentTitle: entry.current_title,
       isCurrentUser: entry.user_id === user.id,
+      isEligible: entry.is_eligible, // Met minimum quiz requirement
+      isCurioClub: entry.is_eligible && entry.rank <= Math.ceil((leaderboardData?.length || 0) * 0.1),
     }))
 
     const position = positionData?.[0]
@@ -69,8 +76,12 @@ export async function GET(request: Request) {
       rank: position.rank,
       totalUsers: position.total_users,
       percentile: position.percentile,
-      monthlyCurio: position.monthly_curio,
-      isTopTenPercent: position.percentile !== null && position.percentile >= 90,
+      monthlyCurio: mcurioToCurio(position.monthly_mcurio),
+      monthlyMcurio: position.monthly_mcurio,
+      quizCount: position.quiz_count,
+      isEligible: position.is_eligible,
+      isTopTenPercent: position.percentile !== null && position.percentile >= CURIO_CLUB_PERCENTILE,
+      isCurioClub: position.is_eligible && position.percentile !== null && position.percentile >= CURIO_CLUB_PERCENTILE,
     } : null
 
     return NextResponse.json({
@@ -78,6 +89,10 @@ export async function GET(request: Request) {
       userPosition,
       month: month || new Date().getMonth() + 1,
       year: year || new Date().getFullYear(),
+      eligibilityRequirements: {
+        minQuizzes: CURIO_CLUB_MIN_QUIZZES,
+        percentile: CURIO_CLUB_PERCENTILE,
+      },
     })
   } catch (error) {
     console.error('Leaderboard fetch error:', error)

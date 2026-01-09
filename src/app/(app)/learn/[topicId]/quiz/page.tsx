@@ -8,6 +8,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { PageContainer } from '@/components/layout'
 import { Button, Card, ProgressBar } from '@/components/ui'
 import { CelebrationModal } from '@/components/celebration'
+import { TeachBackChallenge } from '@/components/learn/TeachBackChallenge'
 import { useAIQuiz } from '@/hooks/useAI'
 import { useCurio } from '@/hooks/useCurio'
 import { createClient } from '@/lib/supabase/client'
@@ -15,9 +16,10 @@ import { getRandomEncouragement, QUIZ_ENCOURAGEMENTS } from '@/constants/microco
 import type { Quiz, QuizQuestion, CurioResult } from '@/types'
 import { cn } from '@/lib/utils/cn'
 
-type QuizPhase = 'loading' | 'question' | 'feedback' | 'results'
+type QuizPhase = 'loading' | 'question' | 'feedback' | 'results' | 'teach-back'
 
 interface CourseInfo {
+  topic: string
   intensity: string
   time_budget: number
 }
@@ -46,15 +48,16 @@ export default function QuizPage() {
       // First try to get existing quiz from course
       const { data: course } = await supabase
         .from('courses')
-        .select('quiz_questions, intensity, time_budget')
+        .select('topic, quiz_questions, intensity, time_budget')
         .eq('id', courseId)
         .single()
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const courseData = course as any
       if (courseData) {
-        // Store course info for celebration modal
+        // Store course info for celebration modal and teach-back
         setCourseInfo({
+          topic: courseData.topic,
           intensity: courseData.intensity,
           time_budget: courseData.time_budget,
         })
@@ -181,10 +184,34 @@ export default function QuizPage() {
     )
   }
 
-  // Handle celebration modal close
+  // Handle celebration modal close - go to teach-back challenge
   const handleCelebrationClose = () => {
     setShowCelebration(false)
+    setPhase('teach-back')
+  }
+
+  // Handle teach-back completion
+  const handleTeachBackComplete = (bonusPoints: number) => {
     router.push('/learn')
+  }
+
+  // Handle skipping teach-back
+  const handleTeachBackSkip = () => {
+    router.push('/learn')
+  }
+
+  // Teach-back phase (after celebration)
+  if (phase === 'teach-back' && courseInfo) {
+    return (
+      <PageContainer title="Bonus Challenge" showBack>
+        <TeachBackChallenge
+          topic={courseInfo.topic}
+          courseId={courseId}
+          onComplete={handleTeachBackComplete}
+          onSkip={handleTeachBackSkip}
+        />
+      </PageContainer>
+    )
   }
 
   // Results phase
