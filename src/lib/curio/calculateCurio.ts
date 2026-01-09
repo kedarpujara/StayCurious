@@ -11,6 +11,7 @@ export interface CurioCalculationParams {
   intensity: Intensity;
   quizScore: number; // 0-100 percentage
   attemptNumber: number; // 1, 2, 3, 4+
+  dailyCourseNumber?: number; // Which course of the day (1st, 2nd, etc.)
 }
 
 export interface CurioCalculationResult {
@@ -22,6 +23,8 @@ export interface CurioCalculationResult {
     attemptMultiplier: string;
     attemptPenalty: number;
     perfectBonus: number;
+    dailyBonus: number;
+    dailyMultiplier: string;
   };
 }
 
@@ -57,6 +60,29 @@ export const ATTEMPT_MULTIPLIERS: Record<number, number> = {
 export const PERFECT_SCORE_BONUS = 0.2;
 
 /**
+ * Daily course multipliers - rewards the first courses of the day more
+ * 1st course of day: 100% bonus (2x)
+ * 2nd course: 50% bonus (1.5x)
+ * 3rd course: 25% bonus (1.25x)
+ * 4th+ course: no bonus (1x)
+ */
+export const DAILY_COURSE_MULTIPLIERS: Record<number, number> = {
+  1: 2.0,   // First course of day gets 2x
+  2: 1.5,   // Second gets 1.5x
+  3: 1.25,  // Third gets 1.25x
+  4: 1.0,   // Fourth and beyond: no bonus
+} as const;
+
+/**
+ * Get the daily course multiplier based on how many courses completed today
+ */
+export function getDailyCourseMultiplier(courseNumberToday: number): number {
+  if (courseNumberToday <= 0) return DAILY_COURSE_MULTIPLIERS[1];
+  if (courseNumberToday >= 4) return DAILY_COURSE_MULTIPLIERS[4];
+  return DAILY_COURSE_MULTIPLIERS[courseNumberToday] ?? 1.0;
+}
+
+/**
  * Get the multiplier for a given attempt number
  */
 export function getAttemptMultiplier(attemptNumber: number): number {
@@ -71,42 +97,53 @@ export function getAttemptMultiplier(attemptNumber: number): number {
  * Formula:
  * - Base = CURIO_BASE_AMOUNTS[intensity]
  * - Attempt Multiplier = ATTEMPT_MULTIPLIERS[attemptNumber]
+ * - Daily Multiplier = DAILY_COURSE_MULTIPLIERS[dailyCourseNumber] (first course of day gets 2x!)
  * - Perfect Bonus = 20% of base if quiz_score === 100
- * - Final = floor(base * multiplier) + perfectBonus
+ * - Final = floor((base * attemptMultiplier * dailyMultiplier) + perfectBonus)
  */
 export function calculateQuizCurio(params: CurioCalculationParams): CurioCalculationResult {
-  const { intensity, quizScore, attemptNumber } = params;
+  const { intensity, quizScore, attemptNumber, dailyCourseNumber = 4 } = params;
 
   // Get base curio for this intensity
   const baseCurio = CURIO_BASE_AMOUNTS[intensity];
 
   // Get attempt multiplier (capped at 4)
   const attemptKey = Math.min(Math.max(attemptNumber, 1), 4);
-  const multiplier = getAttemptMultiplier(attemptKey);
+  const attemptMultiplier = getAttemptMultiplier(attemptKey);
 
-  // Calculate base amount after multiplier
-  const afterMultiplier = Math.floor(baseCurio * multiplier);
+  // Get daily course multiplier (first course of day is worth more!)
+  const dailyMultiplier = getDailyCourseMultiplier(dailyCourseNumber);
 
-  // Perfect score bonus: extra 20% for 100% score (also affected by attempt multiplier)
+  // Calculate base amount after both multipliers
+  const afterAttemptMultiplier = Math.floor(baseCurio * attemptMultiplier);
+  const afterDailyMultiplier = Math.floor(afterAttemptMultiplier * dailyMultiplier);
+
+  // Perfect score bonus: extra 20% for 100% score (also affected by multipliers)
   const perfectBonus = quizScore === 100
-    ? Math.floor(baseCurio * PERFECT_SCORE_BONUS * multiplier)
+    ? Math.floor(baseCurio * PERFECT_SCORE_BONUS * attemptMultiplier * dailyMultiplier)
     : 0;
 
   // Final curio
-  const finalCurio = afterMultiplier + perfectBonus;
+  const finalCurio = afterDailyMultiplier + perfectBonus;
 
-  // Calculate penalty for display purposes
-  const attemptPenalty = baseCurio - afterMultiplier;
+  // Calculate penalty and bonus for display purposes
+  const attemptPenalty = baseCurio - afterAttemptMultiplier;
+  const dailyBonus = afterDailyMultiplier - afterAttemptMultiplier;
+
+  // Combined multiplier for display
+  const combinedMultiplier = attemptMultiplier * dailyMultiplier;
 
   return {
     baseCurio,
-    multiplier,
+    multiplier: combinedMultiplier,
     finalCurio,
     breakdown: {
       difficultyBase: baseCurio,
-      attemptMultiplier: `${Math.round(multiplier * 100)}%`,
+      attemptMultiplier: `${Math.round(attemptMultiplier * 100)}%`,
       attemptPenalty,
       perfectBonus,
+      dailyBonus,
+      dailyMultiplier: `${Math.round(dailyMultiplier * 100)}%`,
     },
   };
 }

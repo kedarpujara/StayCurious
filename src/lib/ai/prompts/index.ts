@@ -10,3 +10,9 @@ export {
   getExamplePrompt,
   getActionPrompt,
 } from './lesson-chat'
+export {
+  BLUEPRINT_SYSTEM,
+  getBlueprintPrompt,
+  BLUEPRINT_QUIZ_SYSTEM,
+  getBlueprintQuizPrompt,
+} from './blueprint'

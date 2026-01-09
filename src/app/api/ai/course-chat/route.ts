@@ -2,6 +2,7 @@ import { streamText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
 import { getChatModel, getDefaultProvider } from '@/lib/ai/providers'
 import { COURSE_CHAT_SYSTEM, getCourseChatPrompt } from '@/lib/ai/prompts'
+import { toDisplayFormat } from '@/lib/blueprint'
 import type { AIProvider, CourseContent } from '@/types'
 
 interface ChatMessage {
@@ -49,10 +50,11 @@ export async function POST(request: Request) {
       return new Response('Course not found', { status: 404 })
     }
 
-    const content = course.content as CourseContent
+    // Convert blueprint format to legacy format if needed
+    const content = toDisplayFormat(course.content) as CourseContent
 
     // Build compact context: section titles for overview + current section content only
-    const sectionTitles = content.sections.map(s => s.title).join(', ')
+    const sectionTitles = content.sections?.map(s => s.title).join(', ') || ''
 
     let sectionContext: string
     if (currentSectionId) {

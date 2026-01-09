@@ -4,8 +4,6 @@ import { useState, useEffect, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen,
-  Clock,
-  Sparkles,
   ArrowRight,
   Trophy,
   CheckCircle,
@@ -20,9 +18,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { PageContainer } from '@/components/layout'
 import { Card, ProgressBar, Button } from '@/components/ui'
+import { AlmanacBrowser } from '@/components/almanac'
 import { useBacklog } from '@/hooks/useBacklog'
 import { createClient } from '@/lib/supabase/client'
 import { CATEGORIES } from '@/types'
+import type { AlmanacCategory, AlmanacTopic } from '@/types'
 import { cn } from '@/lib/utils/cn'
 
 type TabType = 'almanac' | 'backlog' | 'active' | 'completed'
@@ -72,8 +72,22 @@ function LearnPageContent() {
     },
   })
 
+  // Fetch almanac categories (hierarchical)
+  const { data: almanacCategories = [], isLoading: loadingCategories } = useQuery({
+    queryKey: ['almanac-categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('almanac_categories')
+        .select('*')
+        .order('display_order')
+
+      if (error) throw error
+      return (data || []) as AlmanacCategory[]
+    },
+  })
+
   // Fetch almanac topics (showcase topics)
-  const { data: almanacTopics = [], isLoading: loadingAlmanac } = useQuery({
+  const { data: almanacTopics = [], isLoading: loadingTopics } = useQuery({
     queryKey: ['almanac-topics', backlogItems.map(i => i.topic).join(',')],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -103,12 +117,55 @@ function LearnPageContent() {
             (c: any) => c.topic.toLowerCase() === topic.topic.toLowerCase()
           )?.id || null,
           inBacklog: backlogTopics.includes(topic.topic.toLowerCase())
-        }))
+        })) as AlmanacTopic[]
       }
 
-      return topics
+      return topics as AlmanacTopic[]
     },
   })
+
+  // Fetch daily topic
+  const { data: dailyTopic } = useQuery({
+    queryKey: ['daily-topic', backlogItems.map(i => i.topic).join(',')],
+    queryFn: async () => {
+      const res = await fetch('/api/almanac/daily-topic')
+      if (!res.ok) return null
+
+      const data = await res.json()
+      if (!data || !data.topic_id) return null
+
+      const { data: { user } } = await supabase.auth.getUser()
+
+      // Check if user has this topic in their courses or backlog
+      let existingCourseId = null
+      if (user) {
+        const { data: userCourses } = await supabase
+          .from('courses')
+          .select('id, topic')
+          .eq('user_id', user.id)
+
+        existingCourseId = userCourses?.find(
+          (c: any) => c.topic.toLowerCase() === data.topic.toLowerCase()
+        )?.id || null
+      }
+
+      const backlogTopics = backlogItems.map(item => item.topic.toLowerCase())
+
+      return {
+        id: data.topic_id,
+        topic: data.topic,
+        description: data.description,
+        category: data.category,
+        difficulty: data.difficulty,
+        estimated_minutes: data.estimated_minutes || 15,
+        subcategory_id: data.subcategory_id,
+        existingCourseId,
+        inBacklog: backlogTopics.includes(data.topic.toLowerCase())
+      } as AlmanacTopic
+    },
+  })
+
+  const loadingAlmanac = loadingCategories || loadingTopics
 
   // Fetch completed courses
   const { data: completedCourses = [], isLoading: loadingCompleted } = useQuery({
@@ -234,80 +291,14 @@ function LearnPageContent() {
             </p>
           </div>
 
-          {loadingAlmanac ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
-              ))}
-            </div>
-          ) : almanacTopics.length === 0 ? (
-            <Card className="py-12 text-center">
-              <Library className="mx-auto mb-4 h-12 w-12 text-slate-300 dark:text-slate-600" />
-              <p className="text-slate-500 dark:text-slate-400">
-                No topics available yet
-              </p>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {almanacTopics.map((topic: any, index: number) => {
-                const category = getCategoryInfo(topic.category)
-
-                return (
-                  <motion.div
-                    key={topic.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Card className="relative">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-xl">
-                          {category.icon}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="mb-1 font-medium text-slate-900 dark:text-white">
-                            {topic.topic}
-                          </h3>
-                          <p className="mb-2 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
-                            {topic.description}
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {topic.estimated_minutes} min
-                            </span>
-                            <span className="capitalize">{topic.difficulty}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          {topic.existingCourseId ? (
-                            <Link href={`/learn/${topic.existingCourseId}`}>
-                              <Button size="sm" variant="secondary">
-                                Continue
-                              </Button>
-                            </Link>
-                          ) : topic.inBacklog ? (
-                            <span className="text-xs text-primary-600 dark:text-primary-400 font-medium px-2 py-1">
-                              In Backlog
-                            </span>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleAddToBacklog(topic.topic, topic.category)}
-                              icon={<Plus className="h-4 w-4" />}
-                            >
-                              Add
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  </motion.div>
-                )
-              })}
-            </div>
-          )}
+          <AlmanacBrowser
+            categories={almanacCategories}
+            topics={almanacTopics}
+            onAddToBacklog={handleAddToBacklog}
+            isLoading={loadingAlmanac}
+            initialCategory={searchParams.get('category') || undefined}
+            dailyTopic={dailyTopic}
+          />
         </section>
       )}
 
