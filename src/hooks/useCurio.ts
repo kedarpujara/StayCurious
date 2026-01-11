@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
 import { useLevelUp } from '@/contexts/LevelUpContext'
 import type { CurioAction, CurioResult, Intensity, UserLeaderboardPosition } from '@/types'
 
@@ -15,11 +14,24 @@ interface AddCurioOptions {
   skipLevelUpToast?: boolean // Skip toast for quiz completion (handled by CelebrationModal)
 }
 
+interface CurioData {
+  curio: number           // Display Curio (mCurio / 1000)
+  mcurio: number          // Raw mCurio value
+  title: string
+  leaderboard: UserLeaderboardPosition | null
+  curioClub?: {
+    isEligible: boolean
+    eligibleUntil: string | null
+  }
+}
+
 interface UseCurioReturn {
   curio: number
+  mcurio: number          // Raw mCurio for precise tracking
   title: string
   recentCurio: number
   leaderboardPosition: UserLeaderboardPosition | null
+  curioClub: { isEligible: boolean; eligibleUntil: string | null } | null
   isLoading: boolean
   addCurio: (action: CurioAction, options?: AddCurioOptions) => Promise<CurioResult | null>
   isUpdating: boolean
@@ -29,7 +41,6 @@ interface UseCurioReturn {
 export function useCurio(): UseCurioReturn {
   const [recentCurio, setRecentCurio] = useState(0)
   const queryClient = useQueryClient()
-  const supabase = createClient()
   const { showLevelUp } = useLevelUp()
 
   // Fetch user curio data with leaderboard position
@@ -40,11 +51,7 @@ export function useCurio(): UseCurioReturn {
       if (!res.ok) {
         throw new Error('Failed to fetch curio')
       }
-      return res.json() as Promise<{
-        curio: number
-        title: string
-        leaderboard: UserLeaderboardPosition | null
-      }>
+      return res.json() as Promise<CurioData>
     },
     staleTime: 60 * 1000, // 1 minute
   })
@@ -103,9 +110,11 @@ export function useCurio(): UseCurioReturn {
 
   return {
     curio: data?.curio ?? 0,
+    mcurio: data?.mcurio ?? 0,
     title: data?.title ?? 'Curious Newcomer',
     recentCurio,
     leaderboardPosition: data?.leaderboard ?? null,
+    curioClub: data?.curioClub ?? null,
     isLoading,
     addCurio,
     isUpdating,

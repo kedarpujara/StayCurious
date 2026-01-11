@@ -33,26 +33,6 @@ export async function POST(request: Request) {
       prompt: getExplainPrompt(question),
     })
 
-    // Log the question for karma tracking (fire and forget)
-    ;(async () => {
-      try {
-        await supabase
-          .from('curiosity_logs')
-          .insert({
-            user_id: user.id,
-            question,
-            ai_provider: selectedProvider,
-            karma_earned: 1,
-          })
-        await supabase.rpc('update_user_karma', {
-          p_user_id: user.id,
-          p_karma_amount: 1,
-        })
-      } catch (e) {
-        console.error('Failed to log karma:', e)
-      }
-    })()
-
     return result.toTextStreamResponse()
   } catch (error) {
     console.error('Explain API error:', error)

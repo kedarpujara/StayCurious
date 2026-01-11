@@ -1,4 +1,5 @@
 export * from './database'
+export * from './blueprint'
 
 // AI Types
 export type AIProvider = 'openai' | 'anthropic'
@@ -68,6 +69,8 @@ export interface CurioResult {
     attemptMultiplier: string
     attemptPenalty: number
     perfectBonus: number
+    dailyBonus: number
+    dailyMultiplier: string
   }
 }
 
@@ -83,17 +86,25 @@ export interface LeaderboardEntry {
   userId: string
   displayName: string | null
   avatarUrl: string | null
-  monthlyCurio: number
+  monthlyCurio: number         // Curio (display value)
+  monthlyMcurio?: number       // Raw mCurio value
+  quizCount?: number           // Number of quizzes passed this month
   currentTitle: string
   isCurrentUser?: boolean
+  isEligible?: boolean         // Met minimum quiz requirement
+  isCurioClub?: boolean        // Top 10% and eligible
 }
 
 export interface UserLeaderboardPosition {
   rank: number | null
   totalUsers: number
   percentile: number | null
-  monthlyCurio: number
+  monthlyCurio: number         // Curio (display value)
+  monthlyMcurio?: number       // Raw mCurio value
+  quizCount?: number           // Number of quizzes passed this month
+  isEligible?: boolean         // Met minimum quiz requirement
   isTopTenPercent: boolean
+  isCurioClub?: boolean        // Top 10% and eligible
 }
 
 // Curio Circles Types
@@ -137,11 +148,86 @@ export interface PricingEligibility {
 export type Intensity = 'skim' | 'solid' | 'deep'
 export type TimeBudget = 5 | 15 | 30 | 45
 
+// Almanac Course Depth (standardized for competitive fairness)
+export type CourseDepth = 'quick' | 'solid' | 'deep'
+
+export interface DepthConfig {
+  label: string
+  minutes: number
+  sections: number
+  description: string
+  icon: string
+}
+
+export const DEPTH_CONFIG: Record<CourseDepth, DepthConfig> = {
+  quick: {
+    label: 'Quick',
+    minutes: 5,
+    sections: 4,
+    description: 'Get the essentials in a few minutes',
+    icon: '⚡'
+  },
+  solid: {
+    label: 'Solid',
+    minutes: 15,
+    sections: 6,
+    description: 'Balanced understanding with examples',
+    icon: '📚'
+  },
+  deep: {
+    label: 'Deep',
+    minutes: 30,
+    sections: 8,
+    description: 'Comprehensive mastery',
+    icon: '🎓'
+  }
+}
+
+export interface AlmanacCourse {
+  id: string
+  showcase_topic_id: string
+  depth: CourseDepth
+  content: CourseContent
+  quiz_questions: Quiz
+  estimated_minutes: number
+  section_count: number
+  generated_at: string
+  topic?: AlmanacTopic
+}
+
 export interface Category {
   id: string
   name: string
   icon: string
   color: string
+}
+
+// Almanac Hierarchical Categories
+export interface AlmanacCategory {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  icon: string | null
+  color: string | null
+  parent_id: string | null
+  display_order: number
+  children?: AlmanacCategory[]
+  topics?: AlmanacTopic[]
+  topic_count?: number
+}
+
+export interface AlmanacTopic {
+  id: string
+  topic: string
+  description: string
+  category: string
+  difficulty: 'beginner' | 'intermediate' | 'advanced'
+  estimated_minutes: number
+  display_order: number
+  subcategory_id: string | null
+  existingCourseId?: string | null
+  inBacklog?: boolean
 }
 
 export const CATEGORIES: Category[] = [
