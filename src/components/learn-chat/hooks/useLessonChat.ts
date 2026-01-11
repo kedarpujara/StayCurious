@@ -1,24 +1,22 @@
 import { useReducer, useCallback, useMemo } from 'react'
-import type { ChatMode, StepKind, LessonChatAction, CourseContent } from '@/types'
-
-// Step sequence for each section
-const STEP_SEQUENCE: StepKind[] = ['intro', 'content', 'check', 'summary']
+import type { ChatMode, CourseContent } from '@/types'
 
 export interface ChatMessage {
   id: string
   role: 'assistant' | 'user'
   content: string
-  type: 'lesson' | 'clarification' | 'action'
+  type: 'lesson' | 'clarification' | 'example' | 'action'
   timestamp: Date
 }
 
 export interface LessonChatState {
   mode: ChatMode
   currentSectionIndex: number
-  currentStepIndex: number
   messages: ChatMessage[]
   isStreaming: boolean
   isComplete: boolean
+  exampleVisible: boolean // Track if example is currently shown
+  exampleLoaded: boolean // Track if example has been loaded for this section
 }
 
 type LessonChatActionType =
@@ -26,11 +24,13 @@ type LessonChatActionType =
   | { type: 'ADD_MESSAGE'; message: ChatMessage }
   | { type: 'UPDATE_STREAMING_MESSAGE'; content: string }
   | { type: 'FINISH_STREAMING' }
-  | { type: 'ADVANCE_STEP' }
   | { type: 'NEXT_SECTION' }
   | { type: 'ENTER_CLARIFICATION' }
   | { type: 'EXIT_CLARIFICATION' }
   | { type: 'COMPLETE_COURSE' }
+  | { type: 'SHOW_EXAMPLE' }
+  | { type: 'HIDE_EXAMPLE' }
+  | { type: 'MARK_EXAMPLE_LOADED' }
   | { type: 'RESET' }
 
 function generateId(): string {
@@ -66,25 +66,13 @@ function lessonChatReducer(
     case 'FINISH_STREAMING':
       return { ...state, isStreaming: false }
 
-    case 'ADVANCE_STEP': {
-      const nextStepIndex = state.currentStepIndex + 1
-      // If we've completed all steps in this section
-      if (nextStepIndex >= STEP_SEQUENCE.length) {
-        return state // Don't advance past the last step - use NEXT_SECTION instead
-      }
-      return {
-        ...state,
-        currentStepIndex: nextStepIndex,
-        mode: 'guided',
-      }
-    }
-
     case 'NEXT_SECTION':
       return {
         ...state,
         currentSectionIndex: state.currentSectionIndex + 1,
-        currentStepIndex: 0,
         mode: 'guided',
+        exampleVisible: false,
+        exampleLoaded: false,
       }
 
     case 'ENTER_CLARIFICATION':
@@ -96,6 +84,15 @@ function lessonChatReducer(
     case 'COMPLETE_COURSE':
       return { ...state, isComplete: true }
 
+    case 'SHOW_EXAMPLE':
+      return { ...state, exampleVisible: true }
+
+    case 'HIDE_EXAMPLE':
+      return { ...state, exampleVisible: false }
+
+    case 'MARK_EXAMPLE_LOADED':
+      return { ...state, exampleLoaded: true }
+
     case 'RESET':
       return initialState
 
@@ -104,23 +101,28 @@ function lessonChatReducer(
   }
 }
 
-const initialState: LessonChatState = {
-  mode: 'guided',
-  currentSectionIndex: 0,
-  currentStepIndex: 0,
-  messages: [],
-  isStreaming: false,
-  isComplete: false,
+function getInitialState(initialSectionIndex: number = 0): LessonChatState {
+  return {
+    mode: 'guided',
+    currentSectionIndex: initialSectionIndex,
+    messages: [],
+    isStreaming: false,
+    isComplete: false,
+    exampleVisible: false,
+    exampleLoaded: false,
+  }
 }
 
-export function useLessonChat(courseContent: CourseContent | undefined) {
-  const [state, dispatch] = useReducer(lessonChatReducer, initialState)
+const initialState = getInitialState()
+
+export function useLessonChat(courseContent: CourseContent | undefined, initialSectionIndex: number = 0) {
+  const [state, dispatch] = useReducer(lessonChatReducer, getInitialState(initialSectionIndex))
 
   const totalSections = courseContent?.sections.length ?? 0
   const currentSection = courseContent?.sections[state.currentSectionIndex]
-  const currentStepKind = STEP_SEQUENCE[state.currentStepIndex]
-  const isLastStepInSection = state.currentStepIndex >= STEP_SEQUENCE.length - 1
   const isLastSection = state.currentSectionIndex >= totalSections - 1
+  // Check if current section has a pre-stored example
+  const hasStoredExample = !!currentSection?.example
 
   const startStreaming = useCallback(() => {
     dispatch({ type: 'START_STREAMING' })
@@ -145,17 +147,9 @@ export function useLessonChat(courseContent: CourseContent | undefined) {
     dispatch({ type: 'FINISH_STREAMING' })
   }, [])
 
-  const advanceStep = useCallback(() => {
-    if (isLastStepInSection) {
-      if (isLastSection) {
-        dispatch({ type: 'COMPLETE_COURSE' })
-      } else {
-        dispatch({ type: 'NEXT_SECTION' })
-      }
-    } else {
-      dispatch({ type: 'ADVANCE_STEP' })
-    }
-  }, [isLastStepInSection, isLastSection])
+  const nextSection = useCallback(() => {
+    dispatch({ type: 'NEXT_SECTION' })
+  }, [])
 
   const enterClarification = useCallback(() => {
     dispatch({ type: 'ENTER_CLARIFICATION' })
@@ -163,6 +157,18 @@ export function useLessonChat(courseContent: CourseContent | undefined) {
 
   const exitClarification = useCallback(() => {
     dispatch({ type: 'EXIT_CLARIFICATION' })
+  }, [])
+
+  const showExample = useCallback(() => {
+    dispatch({ type: 'SHOW_EXAMPLE' })
+  }, [])
+
+  const hideExample = useCallback(() => {
+    dispatch({ type: 'HIDE_EXAMPLE' })
+  }, [])
+
+  const markExampleLoaded = useCallback(() => {
+    dispatch({ type: 'MARK_EXAMPLE_LOADED' })
   }, [])
 
   const reset = useCallback(() => {
@@ -176,9 +182,12 @@ export function useLessonChat(courseContent: CourseContent | undefined) {
       addMessage,
       updateStreamingMessage,
       finishStreaming,
-      advanceStep,
+      nextSection,
       enterClarification,
       exitClarification,
+      showExample,
+      hideExample,
+      markExampleLoaded,
       reset,
     }),
     [
@@ -186,9 +195,12 @@ export function useLessonChat(courseContent: CourseContent | undefined) {
       addMessage,
       updateStreamingMessage,
       finishStreaming,
-      advanceStep,
+      nextSection,
       enterClarification,
       exitClarification,
+      showExample,
+      hideExample,
+      markExampleLoaded,
       reset,
     ]
   )
@@ -196,11 +208,9 @@ export function useLessonChat(courseContent: CourseContent | undefined) {
   return {
     state,
     currentSection,
-    currentStepKind,
-    isLastStepInSection,
     isLastSection,
     totalSections,
-    stepsPerSection: STEP_SEQUENCE.length,
+    hasStoredExample,
     actions,
   }
 }

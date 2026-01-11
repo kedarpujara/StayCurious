@@ -1,152 +1,204 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle, XCircle, Trophy, ArrowRight, RotateCcw } from 'lucide-react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { Trophy, ArrowRight, RotateCcw, Sparkles } from 'lucide-react'
 import { PageContainer } from '@/components/layout'
 import { Button, Card, ProgressBar } from '@/components/ui'
-import { CelebrationModal } from '@/components/celebration'
-import { useAIQuiz } from '@/hooks/useAI'
 import { useCurio } from '@/hooks/useCurio'
 import { createClient } from '@/lib/supabase/client'
 import { getRandomEncouragement, QUIZ_ENCOURAGEMENTS } from '@/constants/microcopy'
-import type { Quiz, QuizQuestion, CurioResult } from '@/types'
+import type { Quiz } from '@/types'
 import { cn } from '@/lib/utils/cn'
 
-type QuizPhase = 'loading' | 'question' | 'feedback' | 'results'
+type QuizPhase = 'loading' | 'question' | 'results'
+type QuizDifficulty = 'easy' | 'medium' | 'hard'
 
-interface CourseInfo {
-  intensity: string
-  time_budget: number
+const DIFFICULTY_CONFIG = {
+  easy: { questionCount: 5, curioReward: 10, label: 'Easy' },
+  medium: { questionCount: 5, curioReward: 25, label: 'Medium' },
+  hard: { questionCount: 10, curioReward: 50, label: 'Hard' },
+}
+
+// Retry multipliers - each subsequent attempt earns less
+const ATTEMPT_MULTIPLIER: Record<number, number> = {
+  1: 1.0,   // Full reward
+  2: 0.5,   // 50%
+  3: 0.25,  // 25%
 }
 
 export default function QuizPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const courseId = params.topicId as string
   const supabase = createClient()
+
+  // Get difficulty from URL, default to medium
+  const difficulty = (searchParams.get('difficulty') as QuizDifficulty) || 'medium'
+  const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.medium
 
   const [phase, setPhase] = useState<QuizPhase>('loading')
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [answers, setAnswers] = useState<number[]>([])
   const [quiz, setQuiz] = useState<Quiz | null>(null)
-  const [courseInfo, setCourseInfo] = useState<CourseInfo | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
-  const [curioResult, setCurioResult] = useState<CurioResult | null>(null)
+  const [curioEarned, setCurioEarned] = useState(0)
+  const [attemptNumber, setAttemptNumber] = useState(1)
+  const [catalogCourseId, setCatalogCourseId] = useState<string | null>(null)
+  const [alreadyPassed, setAlreadyPassed] = useState(false)
+  const [passedDifficultiesCount, setPassedDifficultiesCount] = useState(0)
 
-  const { generateQuiz, isLoading: isGenerating } = useAIQuiz()
-  const { addCurio, curio } = useCurio()
+  const { addCurio } = useCurio()
 
-  // Fetch or generate quiz
+  // Fetch quiz questions and previous attempts
   useEffect(() => {
     async function loadQuiz() {
-      // First try to get existing quiz from course
-      const { data: course } = await supabase
-        .from('courses')
-        .select('quiz_questions, intensity, time_budget')
-        .eq('id', courseId)
-        .single()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Fetch course and progress in parallel
+      const [courseResult, progressResult] = await Promise.all([
+        supabase
+          .from('courses')
+          .select('quiz_questions')
+          .eq('id', courseId)
+          .single(),
+        supabase
+          .from('user_course_progress')
+          .select('catalog_course_id')
+          .eq('course_id', courseId)
+          .eq('user_id', user.id)
+          .single(),
+      ])
+
+      const catalogId = progressResult.data?.catalog_course_id
+      setCatalogCourseId(catalogId || null)
+
+      // Check for previous attempts
+      if (catalogId) {
+        // Fetch ALL attempts for this course (all difficulties)
+        const { data: allAttempts } = await supabase
+          .from('quiz_attempts')
+          .select('difficulty, passed')
+          .eq('user_id', user.id)
+          .eq('catalog_course_id', catalogId)
+
+        if (allAttempts) {
+          // Count attempts at this specific difficulty
+          const thisDifficultyAttempts = allAttempts.filter(a => a.difficulty === difficulty)
+          if (thisDifficultyAttempts.length > 0) {
+            setAttemptNumber(thisDifficultyAttempts.length + 1)
+            const hasPassed = thisDifficultyAttempts.some(a => a.passed)
+            setAlreadyPassed(hasPassed)
+          }
+
+          // Count how many DISTINCT difficulties have been passed
+          const passedDifficulties = new Set(
+            allAttempts.filter(a => a.passed).map(a => a.difficulty)
+          )
+          setPassedDifficultiesCount(passedDifficulties.size)
+        }
+      }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const courseData = course as any
-      if (courseData) {
-        // Store course info for celebration modal
-        setCourseInfo({
-          intensity: courseData.intensity,
-          time_budget: courseData.time_budget,
-        })
-
-        if (courseData.quiz_questions) {
-          setQuiz(courseData.quiz_questions as Quiz)
-          setPhase('question')
-        } else {
-          // Generate new quiz
-          const generatedQuiz = await generateQuiz(courseId)
-          if (generatedQuiz) {
-            setQuiz(generatedQuiz)
-            setPhase('question')
-          }
-        }
+      const courseData = courseResult.data as any
+      if (courseData?.quiz_questions) {
+        const fullQuiz = courseData.quiz_questions as Quiz
+        // Slice questions based on difficulty, but use all available if not enough
+        const availableQuestions = fullQuiz.questions.length
+        const targetCount = Math.min(config.questionCount, availableQuestions)
+        const questions = fullQuiz.questions.slice(0, targetCount)
+        setQuiz({ ...fullQuiz, questions })
+        setPhase('question')
       }
     }
 
     loadQuiz()
-  }, [courseId, generateQuiz, supabase])
+  }, [courseId, config.questionCount, difficulty, supabase])
 
   const currentQuestion = quiz?.questions[currentQuestionIndex]
-  const isCorrect = selectedAnswer === currentQuestion?.correctAnswer
   const score = answers.filter((a, i) => a === quiz?.questions[i].correctAnswer).length
   const totalQuestions = quiz?.questions.length || 0
   const scorePercent = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0
   const passed = scorePercent >= 80
 
-  const handleSelectAnswer = (answerIndex: number) => {
+  const handleSelectAnswer = async (answerIndex: number) => {
     if (phase !== 'question') return
     setSelectedAnswer(answerIndex)
-    setPhase('feedback')
-  }
 
-  const handleNextQuestion = async () => {
-    // Save answer
-    const newAnswers = [...answers, selectedAnswer!]
+    // Record answer and move to next question immediately (no feedback)
+    const newAnswers = [...answers, answerIndex]
     setAnswers(newAnswers)
 
     if (currentQuestionIndex < totalQuestions - 1) {
-      // Next question
-      setCurrentQuestionIndex(currentQuestionIndex + 1)
-      setSelectedAnswer(null)
-      setPhase('question')
+      // Small delay for visual feedback that answer was selected
+      setTimeout(() => {
+        setCurrentQuestionIndex(currentQuestionIndex + 1)
+        setSelectedAnswer(null)
+      }, 300)
     } else {
-      // Show results
+      // Last question - show results
       setPhase('results')
 
-      // Calculate final score
       const finalScore = newAnswers.filter(
         (a, i) => a === quiz?.questions[i].correctAnswer
       ).length
       const finalPercent = Math.round((finalScore / totalQuestions) * 100)
       const didPass = finalPercent >= 80
 
-      // Update progress in database
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from('learning_progress')
-          .update({
-            quiz_completed: true,
-            quiz_score: finalPercent,
-            quiz_attempts: 1, // Increment this properly in production
-            status: didPass ? 'completed' : 'in_progress',
-            completed_at: didPass ? new Date().toISOString() : null,
-          })
-          .eq('course_id', courseId)
-          .eq('user_id', user.id)
+      if (!user) return
 
-        // Update backlog item if exists
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from('backlog_items')
-          .update({
-            status: didPass ? 'completed' : 'in_progress',
-            completed_at: didPass ? new Date().toISOString() : null,
-          })
-          .eq('course_id', courseId)
-          .eq('user_id', user.id)
+      // Calculate reward if passing (with multiplier for retries AND cross-difficulty)
+      // Each subsequent quiz difficulty passed earns less curio
+      let reward = 0
+      if (didPass && !alreadyPassed) {
+        // Retry multiplier for this specific difficulty
+        const retryMultiplier = ATTEMPT_MULTIPLIER[Math.min(attemptNumber, 3)] ?? 0
+        // Cross-difficulty multiplier: 1st quiz = 100%, 2nd = 50%, 3rd = 25%
+        const crossDiffMultiplier = ATTEMPT_MULTIPLIER[passedDifficultiesCount + 1] ?? 0
+        reward = Math.floor(config.curioReward * retryMultiplier * crossDiffMultiplier)
       }
 
-      // Award curio and show celebration if passed
-      if (didPass) {
-        const result = await addCurio('quiz_passed', {
-          intensity: courseInfo?.intensity as 'skim' | 'solid' | 'deep' | undefined,
-          skipLevelUpToast: true, // CelebrationModal handles level-up display
+      // Record quiz attempt with curio earned
+      await supabase.from('quiz_attempts').insert({
+        user_id: user.id,
+        course_id: courseId,
+        catalog_course_id: catalogCourseId,
+        difficulty,
+        questions_total: totalQuestions,
+        questions_correct: finalScore,
+        score_percent: finalPercent,
+        passed: didPass,
+        curio_earned: reward,
+        answers: newAnswers,
+        attempt_number: attemptNumber,
+      })
+
+      // Update progress status
+      await supabase
+        .from('user_course_progress')
+        .update({
+          status: didPass ? 'completed' : 'in_progress',
         })
-        if (result) {
-          setCurioResult(result)
-        }
+        .eq('course_id', courseId)
+        .eq('user_id', user.id)
+
+      // Award curio if passed
+      if (didPass && !alreadyPassed && reward > 0) {
+        setCurioEarned(reward)
+
+        // Award curio to user's total
+        await addCurio('quiz_passed', {
+          intensity: difficulty === 'hard' ? 'deep' : difficulty === 'medium' ? 'solid' : 'skim',
+          skipLevelUpToast: true,
+        })
+        setShowCelebration(true)
+      } else if (didPass && alreadyPassed) {
+        // Already passed before - no additional curio
         setShowCelebration(true)
       }
     }
@@ -156,59 +208,99 @@ export default function QuizPage() {
     setCurrentQuestionIndex(0)
     setSelectedAnswer(null)
     setAnswers([])
+    setAttemptNumber(prev => prev + 1)
     setPhase('question')
   }
 
-  // Loading state with better UX
-  if (phase === 'loading' || isGenerating) {
+  // Calculate expected reward based on attempt number, cross-difficulty, and whether already passed
+  const expectedReward = alreadyPassed
+    ? 0
+    : Math.floor(
+        config.curioReward *
+        (ATTEMPT_MULTIPLIER[Math.min(attemptNumber, 3)] ?? 0) *
+        (ATTEMPT_MULTIPLIER[passedDifficultiesCount + 1] ?? 0)
+      )
+
+  // Loading state
+  if (phase === 'loading') {
     return (
-      <PageContainer title="Preparing Quiz" showBack>
+      <PageContainer title="Loading Quiz..." showBack>
         <div className="flex flex-col items-center justify-center py-12">
-          <div className="mb-6 h-16 w-16 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-          <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
-            Creating Your Quiz
-          </h2>
-          <p className="mb-4 text-center text-slate-500 dark:text-slate-400">
-            Our AI is generating personalized questions...
-          </p>
-          <Card className="mt-4 max-w-sm text-center">
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              This usually takes 20-40 seconds. Hang tight!
-            </p>
-          </Card>
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
         </div>
       </PageContainer>
     )
   }
 
-  // Handle celebration modal close
-  const handleCelebrationClose = () => {
-    setShowCelebration(false)
-    router.push('/learn')
+  // Results - Passed (showCelebration indicates curio was awarded)
+  if (phase === 'results' && passed) {
+    return (
+      <PageContainer title="Quiz Complete">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center py-8"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', damping: 10 }}
+            className="mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-500"
+          >
+            <Trophy className="h-12 w-12 text-white" />
+          </motion.div>
+          <h1 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">
+            Amazing!
+          </h1>
+          <p className="mb-6 text-center text-slate-600 dark:text-slate-300">
+            You passed the {config.label.toLowerCase()} quiz!
+          </p>
+
+          <Card className="mb-6 w-full max-w-sm text-center">
+            <p className="text-5xl font-bold text-slate-900 dark:text-white">{scorePercent}%</p>
+            <p className="text-slate-500 dark:text-slate-400">
+              {score} out of {totalQuestions} correct
+            </p>
+          </Card>
+
+          {curioEarned > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="mb-6"
+            >
+              <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+                    <Sparkles className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">Bonus Curio earned</p>
+                    <p className="text-2xl font-bold text-amber-800 dark:text-amber-200">
+                      +{curioEarned}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          <Button
+            onClick={() => router.push('/learn')}
+            size="lg"
+            className="w-full max-w-sm"
+            icon={<ArrowRight className="h-5 w-5" />}
+          >
+            Continue Learning
+          </Button>
+        </motion.div>
+      </PageContainer>
+    )
   }
 
-  // Results phase
-  if (phase === 'results') {
-    // Show celebration modal for passed quizzes
-    if (passed && showCelebration) {
-      return (
-        <PageContainer title="Quiz Complete">
-          <CelebrationModal
-            isOpen={showCelebration}
-            onClose={handleCelebrationClose}
-            score={scorePercent}
-            curioEarned={curioResult?.curioEarned || 10}
-            totalCurio={curioResult?.curio || curio}
-            titleUpgraded={curioResult?.titleUpgraded || false}
-            newTitle={curioResult?.newTitle}
-            intensity={courseInfo?.intensity}
-            timeBudget={courseInfo?.time_budget}
-          />
-        </PageContainer>
-      )
-    }
-
-    // Show regular results for failed attempts
+  // Results - Failed
+  if (phase === 'results' && !passed) {
     return (
       <PageContainer title="Quiz Complete">
         <motion.div
@@ -253,7 +345,7 @@ export default function QuizPage() {
     )
   }
 
-  // Question/Feedback phases
+  // No questions available
   if (!currentQuestion) {
     return (
       <PageContainer title="Quiz" showBack>
@@ -267,13 +359,23 @@ export default function QuizPage() {
     )
   }
 
+  // Question/Feedback phases
   return (
-    <PageContainer title="Quiz" showBack>
+    <PageContainer title={`${config.label} Quiz`} showBack>
       {/* Progress */}
       <div className="mb-6">
         <div className="mb-2 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
           <span>Question {currentQuestionIndex + 1} of {totalQuestions}</span>
-          <span>{Math.round(((currentQuestionIndex + 1) / totalQuestions) * 100)}%</span>
+          <span className="flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-amber-500" />
+            {expectedReward > 0 ? (
+              <>+{expectedReward} Curio</>
+            ) : alreadyPassed ? (
+              <span className="text-slate-400">Already passed</span>
+            ) : (
+              <span className="text-slate-400">No Curio (retry limit)</span>
+            )}
+          </span>
         </div>
         <ProgressBar
           value={((currentQuestionIndex + 1) / totalQuestions) * 100}
@@ -288,42 +390,31 @@ export default function QuizPage() {
       </Card>
 
       {/* Options */}
-      <div className="mb-6 space-y-3">
+      <div className="space-y-3">
         {currentQuestion.options.map((option, index) => {
           const isSelected = selectedAnswer === index
-          const isCorrectAnswer = index === currentQuestion.correctAnswer
-          const showResult = phase === 'feedback'
 
           return (
             <motion.button
               key={index}
               onClick={() => handleSelectAnswer(index)}
-              disabled={phase === 'feedback'}
-              whileTap={{ scale: phase === 'question' ? 0.98 : 1 }}
+              disabled={selectedAnswer !== null}
+              whileTap={{ scale: selectedAnswer === null ? 0.98 : 1 }}
               className={cn(
                 'flex w-full items-center gap-3 rounded-xl border-2 p-4 text-left transition-all',
-                phase === 'question' && 'hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/30',
-                phase === 'question' && !isSelected && 'border-slate-200 dark:border-slate-700',
-                showResult && isCorrectAnswer && 'border-green-500 bg-green-50 dark:bg-green-900/30',
-                showResult && isSelected && !isCorrectAnswer && 'border-red-500 bg-red-50 dark:bg-red-900/30',
-                isSelected && phase === 'question' && 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+                selectedAnswer === null && 'hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/30',
+                !isSelected && 'border-slate-200 dark:border-slate-700',
+                isSelected && 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
               )}
             >
               <div
                 className={cn(
                   'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium',
-                  showResult && isCorrectAnswer && 'bg-green-500 text-white',
-                  showResult && isSelected && !isCorrectAnswer && 'bg-red-500 text-white',
-                  !showResult && 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                  'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+                  isSelected && 'bg-primary-500 text-white'
                 )}
               >
-                {showResult && isCorrectAnswer ? (
-                  <CheckCircle className="h-5 w-5" />
-                ) : showResult && isSelected ? (
-                  <XCircle className="h-5 w-5" />
-                ) : (
-                  String.fromCharCode(65 + index)
-                )}
+                {String.fromCharCode(65 + index)}
               </div>
               <span className="flex-1 text-slate-900 dark:text-white">{option}</span>
             </motion.button>
@@ -331,44 +422,15 @@ export default function QuizPage() {
         })}
       </div>
 
-      {/* Feedback */}
-      <AnimatePresence>
-        {phase === 'feedback' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-          >
-            <Card
-              className={cn(
-                'mb-6',
-                isCorrect ? 'bg-green-50 dark:bg-green-900/30' : 'bg-amber-50 dark:bg-amber-900/30'
-              )}
-            >
-              <p className={cn(
-                'mb-2 font-medium',
-                isCorrect ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'
-              )}>
-                {isCorrect
-                  ? getRandomEncouragement(QUIZ_ENCOURAGEMENTS.correct)
-                  : getRandomEncouragement(QUIZ_ENCOURAGEMENTS.incorrect)}
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                {currentQuestion.explanation}
-              </p>
-            </Card>
-
-            <Button
-              onClick={handleNextQuestion}
-              size="lg"
-              className="w-full"
-              icon={<ArrowRight className="h-5 w-5" />}
-            >
-              {currentQuestionIndex < totalQuestions - 1 ? 'Next Question' : 'See Results'}
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Back to Learn link */}
+      <div className="mt-6 text-center">
+        <button
+          onClick={() => router.push('/learn')}
+          className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+        >
+          ← Back to Learn
+        </button>
+      </div>
     </PageContainer>
   )
 }

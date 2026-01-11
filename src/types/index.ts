@@ -19,6 +19,7 @@ export interface CourseSection {
   id: string
   title: string
   content: string
+  example?: string // Pre-generated example, separate from main content
   estimatedMinutes: number
 }
 
@@ -54,6 +55,7 @@ export type CurioAction =
   | 'section_completed'
   | 'lesson_completed'
   | 'quiz_passed'
+  | 'eli5_passed'
   | 'streak_maintained'
 
 export interface CurioResult {

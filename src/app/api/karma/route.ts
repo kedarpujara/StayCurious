@@ -8,6 +8,7 @@ const KARMA_AMOUNTS: Record<KarmaAction, number> = {
   section_completed: 3,
   lesson_completed: 5,
   quiz_passed: 10, // Base amount, can be scaled
+  eli5_passed: 75,
   streak_maintained: 2,
 }
 

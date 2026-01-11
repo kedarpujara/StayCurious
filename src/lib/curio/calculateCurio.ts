@@ -29,12 +29,12 @@ export interface CurioCalculationResult {
  * Base Curio amounts by intensity (difficulty)
  * skim (Easy): 10 Curio
  * solid (Medium): 25 Curio
- * deep (Hard): 60 Curio
+ * deep (Hard): 50 Curio
  */
 export const CURIO_BASE_AMOUNTS: Record<Intensity, number> = {
   skim: 10,
   solid: 25,
-  deep: 60,
+  deep: 50,
 } as const;
 
 /**

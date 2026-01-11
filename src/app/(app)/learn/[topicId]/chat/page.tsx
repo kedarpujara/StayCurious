@@ -8,6 +8,7 @@ import { PageContainer } from '@/components/layout'
 import { Card, Button } from '@/components/ui'
 import { LearnChatContainer } from '@/components/learn-chat'
 import { createClient } from '@/lib/supabase/client'
+import { toDisplayFormat } from '@/lib/blueprint'
 import type { CourseContent } from '@/types'
 
 export default function LearnChatPage() {
@@ -16,7 +17,7 @@ export default function LearnChatPage() {
   const supabase = createClient()
   const courseId = params.topicId as string
 
-  // Fetch course data
+  // Fetch course data and progress
   const { data: courseData, isLoading, error } = useQuery({
     queryKey: ['course-chat', courseId],
     queryFn: async () => {
@@ -34,9 +35,29 @@ export default function LearnChatPage() {
         throw new Error('Course not found')
       }
 
+      // Fetch user's progress for this course
+      const { data: progress } = await supabase
+        .from('user_course_progress')
+        .select('current_section_index, status')
+        .eq('course_id', courseId)
+        .eq('user_id', user.id)
+        .single()
+
+      const content = toDisplayFormat(course.content)
+      const totalSections = content?.sections?.length || 0
+
+      // For completed courses or out-of-bounds index, start from section 0 (review mode)
+      const isReviewMode = progress?.status === 'completed'
+      let sectionIndex = progress?.current_section_index || 0
+      if (isReviewMode || sectionIndex >= totalSections) {
+        sectionIndex = 0
+      }
+
       return {
         course,
-        content: course.content as CourseContent,
+        content,
+        currentSectionIndex: sectionIndex,
+        isReviewMode,
       }
     },
     enabled: !!courseId && courseId !== 'new',
@@ -138,6 +159,8 @@ export default function LearnChatPage() {
           courseId={courseId}
           courseTopic={courseData.course.topic}
           courseContent={courseData.content}
+          initialSectionIndex={courseData.currentSectionIndex}
+          isReviewMode={courseData.isReviewMode}
         />
       </div>
     </div>

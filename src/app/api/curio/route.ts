@@ -9,8 +9,9 @@ import { calculateQuizCurio, CURIO_BASE_AMOUNTS } from '@/lib/curio'
 const CURIO_AMOUNTS: Record<Exclude<CurioAction, 'quiz_passed'>, number> = {
   question_asked: 1,
   course_started: 5,
-  section_completed: 3,
+  section_completed: 5,
   lesson_completed: 5,
+  eli5_passed: 75,
   streak_maintained: 2,
 }
 
@@ -76,6 +77,19 @@ export async function POST(request: Request) {
       console.error('Curio RPC error:', error)
       throw error
     }
+
+    // Update stats based on action
+    if (action === 'question_asked') {
+      await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'questions_asked' })
+    } else if (action === 'quiz_passed') {
+      await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'quizzes_passed' })
+      if (quizScore === 100) {
+        await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'perfect_quizzes' })
+      }
+    }
+
+    // Check and award any new badges
+    await supabase.rpc('check_and_award_badges', { p_user_id: user.id })
 
     const result = data[0]
     const response: CurioResult = {
