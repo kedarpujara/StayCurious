@@ -7,19 +7,17 @@ import { cn } from '@/lib/utils/cn'
 interface StepIndicatorProps {
   currentSection: number
   totalSections: number
-  currentStep: number
-  stepsPerSection: number
   sectionTitle?: string
 }
 
 export function StepIndicator({
   currentSection,
   totalSections,
-  currentStep,
-  stepsPerSection,
   sectionTitle,
 }: StepIndicatorProps) {
-  const progressPercent = ((currentSection * stepsPerSection + currentStep + 1) / (totalSections * stepsPerSection)) * 100
+  // Progress based on sections completed (1 step per section)
+  // Each "Got it" click advances to next section (~16.67% for 6 sections)
+  const progressPercent = ((currentSection + 1) / totalSections) * 100
 
   return (
     <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3">

@@ -1,22 +1,18 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { CurioAction, CurioResult, Intensity } from '@/types'
-import {
-  calculateQuizCurio,
-  mcurioToCurio,
-  MCURIO_PER_CURIO,
-} from '@/lib/curio'
+import { calculateQuizCurio, CURIO_BASE_AMOUNTS } from '@/lib/curio'
 
 /**
- * Base mCurio amounts for non-quiz actions (in mCurio)
- * 1 Curio = 1000 mCurio
+ * Base Curio amounts for non-quiz actions
  */
-const MCURIO_AMOUNTS: Record<Exclude<CurioAction, 'quiz_passed'>, number> = {
-  question_asked: 1_000,      // 1 Curio
-  course_started: 5_000,      // 5 Curio
-  section_completed: 3_000,   // 3 Curio
-  lesson_completed: 5_000,    // 5 Curio
-  streak_maintained: 2_000,   // 2 Curio
+const CURIO_AMOUNTS: Record<Exclude<CurioAction, 'quiz_passed'>, number> = {
+  question_asked: 1,
+  course_started: 5,
+  section_completed: 5,
+  lesson_completed: 5,
+  eli5_passed: 75,
+  streak_maintained: 2,
 }
 
 interface CurioRequestBody {
@@ -25,29 +21,6 @@ interface CurioRequestBody {
   intensity?: Intensity
   quizScore?: number
   attemptNumber?: number
-  courseId?: string // Used to track daily completions
-}
-
-/**
- * Get the number of courses a user has completed today (before this one)
- */
-async function getDailyCompletionCount(supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never, userId: string): Promise<number> {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const { count, error } = await supabase
-    .from('learning_progress')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('status', 'completed')
-    .gte('completed_at', today.toISOString())
-
-  if (error) {
-    console.error('Error getting daily completion count:', error)
-    return 3 // Default to no bonus on error
-  }
-
-  return count || 0
 }
 
 export async function POST(request: Request) {
@@ -73,7 +46,7 @@ export async function POST(request: Request) {
     let breakdown: CurioResult['breakdown'] | undefined
 
     if (action === 'quiz_passed') {
-      // Calculate curio using the new attempt-based system with daily bonus
+      // Calculate curio using the new attempt-based system
       if (!intensity) {
         return NextResponse.json(
           { error: 'Missing intensity for quiz_passed action' },
@@ -81,32 +54,17 @@ export async function POST(request: Request) {
         )
       }
 
-      // Get how many courses completed today (before this one)
-      const completedToday = await getDailyCompletionCount(supabase, user.id)
-      // This will be the Nth course completed today (1-indexed)
-      const dailyCourseNumber = completedToday + 1
-
       const calculation = calculateQuizCurio({
         intensity,
         quizScore: quizScore ?? 0,
         attemptNumber: attemptNumber ?? 1,
-        dailyCourseNumber,
       })
 
       curioAmount = calculation.finalCurio
       breakdown = calculation.breakdown
-
-      console.log('[Curio] Quiz completion:', {
-        intensity,
-        quizScore,
-        attemptNumber,
-        dailyCourseNumber,
-        curioAmount,
-        breakdown,
-      })
     } else {
       // Use fixed amounts for other actions
-      curioAmount = MCURIO_AMOUNTS[action]
+      curioAmount = CURIO_AMOUNTS[action]
     }
 
     // Update user curio and check for title upgrade
@@ -119,6 +77,19 @@ export async function POST(request: Request) {
       console.error('Curio RPC error:', error)
       throw error
     }
+
+    // Update stats based on action
+    if (action === 'question_asked') {
+      await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'questions_asked' })
+    } else if (action === 'quiz_passed') {
+      await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'quizzes_passed' })
+      if (quizScore === 100) {
+        await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'perfect_quizzes' })
+      }
+    }
+
+    // Check and award any new badges
+    await supabase.rpc('check_and_award_badges', { p_user_id: user.id })
 
     const result = data[0]
     const response: CurioResult = {
@@ -172,19 +143,14 @@ export async function GET() {
 
     const position = positionData?.[0]
 
-    // Convert mCurio to Curio for display
-    const curioDisplay = mcurioToCurio(userData.curio_points)
-
     return NextResponse.json({
-      curio: curioDisplay,
-      mcurio: userData.curio_points, // Raw mCurio value
+      curio: userData.curio_points,
       title: userData.current_title,
       leaderboard: position ? {
         rank: position.rank,
         totalUsers: position.total_users,
         percentile: position.percentile,
-        monthlyCurio: position.monthly_curio ? mcurioToCurio(position.monthly_curio) : 0,
-        monthlyMcurio: position.monthly_curio,
+        monthlyCurio: position.monthly_curio,
         isTopTenPercent: position.percentile !== null && position.percentile >= 90,
       } : null,
     })

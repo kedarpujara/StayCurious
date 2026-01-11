@@ -26,6 +26,10 @@ export interface Database {
           last_daily_completion_date: string | null
           curio_club_eligible_until: string | null
           curio_club_active: boolean
+          questions_asked: number
+          courses_completed: number
+          quizzes_passed: number
+          perfect_quizzes: number
           created_at: string
           updated_at: string
         }
@@ -45,6 +49,10 @@ export interface Database {
           last_daily_completion_date?: string | null
           curio_club_eligible_until?: string | null
           curio_club_active?: boolean
+          questions_asked?: number
+          courses_completed?: number
+          quizzes_passed?: number
+          perfect_quizzes?: number
           created_at?: string
           updated_at?: string
         }
@@ -64,62 +72,38 @@ export interface Database {
           last_daily_completion_date?: string | null
           curio_club_eligible_until?: string | null
           curio_club_active?: boolean
+          questions_asked?: number
+          courses_completed?: number
+          quizzes_passed?: number
+          perfect_quizzes?: number
           created_at?: string
           updated_at?: string
         }
       }
-      backlog_items: {
+      user_badges: {
         Row: {
           id: string
           user_id: string
-          topic: string
-          description: string | null
-          category: string | null
-          source: 'instant_curiosity' | 'manual' | 'suggested'
-          status: 'pending' | 'in_progress' | 'completed' | 'archived'
-          priority: number
-          course_id: string | null
-          created_at: string
-          updated_at: string
-          started_at: string | null
-          completed_at: string | null
+          badge_id: string
+          awarded_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          topic: string
-          description?: string | null
-          category?: string | null
-          source: 'instant_curiosity' | 'manual' | 'suggested'
-          status?: 'pending' | 'in_progress' | 'completed' | 'archived'
-          priority?: number
-          course_id?: string | null
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
+          badge_id: string
+          awarded_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          topic?: string
-          description?: string | null
-          category?: string | null
-          source?: 'instant_curiosity' | 'manual' | 'suggested'
-          status?: 'pending' | 'in_progress' | 'completed' | 'archived'
-          priority?: number
-          course_id?: string | null
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
+          badge_id?: string
+          awarded_at?: string
         }
       }
       courses: {
         Row: {
           id: string
           user_id: string
-          backlog_item_id: string | null
           topic: string
           intensity: 'skim' | 'solid' | 'deep'
           time_budget: number
@@ -131,7 +115,6 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          backlog_item_id?: string | null
           topic: string
           intensity: 'skim' | 'solid' | 'deep'
           time_budget: number
@@ -143,7 +126,6 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          backlog_item_id?: string | null
           topic?: string
           intensity?: 'skim' | 'solid' | 'deep'
           time_budget?: number
@@ -151,53 +133,6 @@ export interface Database {
           content?: Json
           quiz_questions?: Json | null
           created_at?: string
-        }
-      }
-      learning_progress: {
-        Row: {
-          id: string
-          user_id: string
-          course_id: string
-          sections_completed: string[]
-          current_section: string | null
-          time_spent_seconds: number
-          quiz_completed: boolean
-          quiz_score: number | null
-          quiz_attempts: number
-          status: 'in_progress' | 'completed'
-          started_at: string
-          last_accessed_at: string
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          course_id: string
-          sections_completed?: string[]
-          current_section?: string | null
-          time_spent_seconds?: number
-          quiz_completed?: boolean
-          quiz_score?: number | null
-          quiz_attempts?: number
-          status?: 'in_progress' | 'completed'
-          started_at?: string
-          last_accessed_at?: string
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          course_id?: string
-          sections_completed?: string[]
-          current_section?: string | null
-          time_spent_seconds?: number
-          quiz_completed?: boolean
-          quiz_score?: number | null
-          quiz_attempts?: number
-          status?: 'in_progress' | 'completed'
-          started_at?: string
-          last_accessed_at?: string
-          completed_at?: string | null
         }
       }
       showcase_topics: {
@@ -279,7 +214,6 @@ export interface Database {
           creator_type: 'system' | 'user'
           creator_id: string | null
           showcase_topic_id: string | null
-          depth: 'quick' | 'solid' | 'deep'
           content: Json
           quiz_questions: Json
           description: string | null
@@ -310,7 +244,6 @@ export interface Database {
           creator_type?: 'system' | 'user'
           creator_id?: string | null
           showcase_topic_id?: string | null
-          depth: 'quick' | 'solid' | 'deep'
           content: Json
           quiz_questions: Json
           description?: string | null
@@ -341,7 +274,6 @@ export interface Database {
           creator_type?: 'system' | 'user'
           creator_id?: string | null
           showcase_topic_id?: string | null
-          depth?: 'quick' | 'solid' | 'deep'
           content?: Json
           quiz_questions?: Json
           description?: string | null
@@ -389,15 +321,20 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          course_id: string
+          course_id: string | null
+          catalog_course_id: string | null
           sections_completed: string[]
           current_section: string | null
+          current_section_index: number
+          total_sections: number
+          curio_earned_sections: number
           time_spent_seconds: number
           quiz_completed: boolean
           quiz_score: number | null
           quiz_attempts: number
           quiz_answers: Json | null
-          status: 'in_progress' | 'completed'
+          status: 'saved' | 'in_progress' | 'completed'
+          saved_at: string
           started_at: string
           last_accessed_at: string
           completed_at: string | null
@@ -406,15 +343,20 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          course_id: string
+          course_id?: string | null
+          catalog_course_id?: string | null
           sections_completed?: string[]
           current_section?: string | null
+          current_section_index?: number
+          total_sections?: number
+          curio_earned_sections?: number
           time_spent_seconds?: number
           quiz_completed?: boolean
           quiz_score?: number | null
           quiz_attempts?: number
           quiz_answers?: Json | null
-          status?: 'in_progress' | 'completed'
+          status?: 'saved' | 'in_progress' | 'completed'
+          saved_at?: string
           started_at?: string
           last_accessed_at?: string
           completed_at?: string | null
@@ -423,167 +365,71 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          course_id?: string
+          course_id?: string | null
+          catalog_course_id?: string | null
           sections_completed?: string[]
           current_section?: string | null
+          current_section_index?: number
+          total_sections?: number
+          curio_earned_sections?: number
           time_spent_seconds?: number
           quiz_completed?: boolean
           quiz_score?: number | null
           quiz_attempts?: number
           quiz_answers?: Json | null
-          status?: 'in_progress' | 'completed'
+          status?: 'saved' | 'in_progress' | 'completed'
+          saved_at?: string
           started_at?: string
           last_accessed_at?: string
           completed_at?: string | null
-          chat_state?: string | null
+          chat_state?: Json | null
         }
       }
-      daily_topics: {
+      quiz_attempts: {
         Row: {
           id: string
-          date: string
-          topic: string
-          description: string | null
-          category: string | null
-          ai_provider: string
-          generated_at: string
-        }
-        Insert: {
-          id?: string
-          date: string
-          topic: string
-          description?: string | null
-          category?: string | null
-          ai_provider: string
-          generated_at?: string
-        }
-        Update: {
-          id?: string
-          date?: string
-          topic?: string
-          description?: string | null
-          category?: string | null
-          ai_provider?: string
-          generated_at?: string
-        }
-      }
-      daily_courses: {
-        Row: {
-          id: string
-          daily_topic_id: string
-          date: string
-          content: Json
-          quiz_questions: Json
-          intensity: 'skim'
-          time_budget: number
+          user_id: string
+          course_id: string | null
+          catalog_course_id: string | null
+          difficulty: 'easy' | 'medium' | 'hard'
+          questions_total: number
+          questions_correct: number
+          score_percent: number
+          passed: boolean
+          curio_earned: number
+          answers: Json | null
+          attempt_number: number
           created_at: string
         }
         Insert: {
           id?: string
-          daily_topic_id: string
-          date: string
-          content: Json
-          quiz_questions: Json
-          intensity?: 'skim'
-          time_budget?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          daily_topic_id?: string
-          date?: string
-          content?: Json
-          quiz_questions?: Json
-          intensity?: 'skim'
-          time_budget?: number
-          created_at?: string
-        }
-      }
-      daily_completions: {
-        Row: {
-          id: string
           user_id: string
-          daily_course_id: string
-          date: string
-          quiz_answers: Json | null
-          quiz_score: number | null
-          unlocked: boolean
-          started_at: string
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          daily_course_id: string
-          date: string
-          quiz_answers?: Json | null
-          quiz_score?: number | null
-          unlocked?: boolean
-          started_at?: string
-          completed_at?: string | null
+          course_id?: string | null
+          catalog_course_id?: string | null
+          difficulty: 'easy' | 'medium' | 'hard'
+          questions_total: number
+          questions_correct: number
+          score_percent: number
+          passed: boolean
+          curio_earned?: number
+          answers?: Json | null
+          attempt_number?: number
+          created_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          daily_course_id?: string
-          date?: string
-          quiz_answers?: Json | null
-          quiz_score?: number | null
-          unlocked?: boolean
-          started_at?: string
-          completed_at?: string | null
-        }
-      }
-      curio_circles: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          invite_code: string
-          created_by: string
-          max_members: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          invite_code: string
-          created_by: string
-          max_members?: number
+          course_id?: string | null
+          catalog_course_id?: string | null
+          difficulty?: 'easy' | 'medium' | 'hard'
+          questions_total?: number
+          questions_correct?: number
+          score_percent?: number
+          passed?: boolean
+          curio_earned?: number
+          answers?: Json | null
+          attempt_number?: number
           created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          invite_code?: string
-          created_by?: string
-          max_members?: number
-          created_at?: string
-        }
-      }
-      curio_circle_members: {
-        Row: {
-          id: string
-          circle_id: string
-          user_id: string
-          role: 'owner' | 'admin' | 'member'
-          joined_at: string
-        }
-        Insert: {
-          id?: string
-          circle_id: string
-          user_id: string
-          role?: 'owner' | 'admin' | 'member'
-          joined_at?: string
-        }
-        Update: {
-          id?: string
-          circle_id?: string
-          user_id?: string
-          role?: 'owner' | 'admin' | 'member'
-          joined_at?: string
         }
       }
       curio_events: {
@@ -768,20 +614,6 @@ export interface Database {
           title_upgraded: boolean
         }[]
       }
-      submit_daily_quiz: {
-        Args: {
-          p_user_id: string
-          p_daily_course_id: string
-          p_quiz_answers: Json
-          p_quiz_score: number
-        }
-        Returns: {
-          success: boolean
-          unlocked: boolean
-          new_streak: number
-          curio_earned: number
-        }[]
-      }
       get_user_monthly_curio: {
         Args: {
           p_user_id: string
@@ -817,26 +649,6 @@ export interface Database {
           percentile: number
           monthly_curio: number
         }[]
-      }
-      get_circle_leaderboard: {
-        Args: {
-          p_circle_id: string
-          p_year?: number
-          p_month?: number
-        }
-        Returns: {
-          rank: number
-          user_id: string
-          display_name: string
-          avatar_url: string
-          monthly_curio: number
-          current_title: string
-          role: string
-        }[]
-      }
-      generate_invite_code: {
-        Args: Record<string, never>
-        Returns: string
       }
     }
     Enums: {

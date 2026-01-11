@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModel, getDefaultProvider } from '@/lib/ai/providers'
 import { QUIZ_SYSTEM, getQuizPrompt } from '@/lib/ai/prompts'
 import { toDisplayFormat } from '@/lib/blueprint'
-import type { Quiz, CourseContent } from '@/types'
+import type { Quiz } from '@/types'
 
 export async function POST(request: Request) {
   try {
@@ -46,10 +46,11 @@ export async function POST(request: Request) {
     }
 
     // Generate quiz based on course content (convert from blueprint if needed)
-    const content = toDisplayFormat(course.content) as CourseContent
+    const content = toDisplayFormat(course.content)
+    // Provide full section content so quiz questions are based on what was actually taught
     const sectionSummary = content.sections
       .slice(0, -1) // Exclude "Ready for Quiz" section
-      .map(s => `${s.title}: ${s.content.substring(0, 300)}...`)
+      .map(s => `## ${s.title}\n${s.content}`)
       .join('\n\n')
 
     const model = getModel(getDefaultProvider())
