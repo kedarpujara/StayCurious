@@ -25,6 +25,7 @@ export interface CourseSection {
 }
 
 export interface CourseContent {
+  title?: string
   sections: CourseSection[]
   totalEstimatedMinutes: number
   generatedAt: string
@@ -84,6 +85,7 @@ export interface BadgeRequirement {
 export interface LeaderboardEntry {
   rank: number
   userId: string
+  username: string | null
   displayName: string | null
   avatarUrl: string | null
   monthlyCurio: number         // Curio (display value)

@@ -47,12 +47,12 @@ export default function CourseCompletePage() {
   const supabase = createClient()
   const courseId = params.topicId as string
 
-  // Fetch course data
+  // Fetch course data from course_catalog
   const { data: course, isLoading } = useQuery({
     queryKey: ['course', courseId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('courses')
+        .from('course_catalog')
         .select('*')
         .eq('id', courseId)
         .single()
@@ -62,29 +62,19 @@ export default function CourseCompletePage() {
     },
   })
 
-  // Fetch quiz attempts for this course
+  // Fetch quiz attempts for this course (courseId is now catalog_course_id)
   const { data: quizAttempts } = useQuery({
     queryKey: ['quiz-attempts', courseId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      // Get the catalog_course_id from progress
-      const { data: progress } = await supabase
-        .from('user_course_progress')
-        .select('catalog_course_id')
-        .eq('course_id', courseId)
-        .eq('user_id', user.id)
-        .single()
-
-      if (!progress?.catalog_course_id) return []
-
       // Fetch all attempts for this catalog course
       const { data: attempts } = await supabase
         .from('quiz_attempts')
         .select('difficulty, passed')
         .eq('user_id', user.id)
-        .eq('catalog_course_id', progress.catalog_course_id)
+        .eq('catalog_course_id', courseId)
 
       if (!attempts) return []
 
@@ -108,27 +98,18 @@ export default function CourseCompletePage() {
     staleTime: 0,
   })
 
-  // Fetch ELI5 completion status
+  // Fetch ELI5 completion status (courseId is now catalog_course_id)
   const { data: eli5Completed } = useQuery({
     queryKey: ['eli5-status', courseId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return false
 
-      const { data: progress } = await supabase
-        .from('user_course_progress')
-        .select('catalog_course_id')
-        .eq('course_id', courseId)
-        .eq('user_id', user.id)
-        .single()
-
-      if (!progress?.catalog_course_id) return false
-
       const { data: submission } = await supabase
         .from('eli5_submissions')
         .select('id')
         .eq('user_id', user.id)
-        .eq('course_id', progress.catalog_course_id)
+        .eq('course_id', courseId)
         .eq('passed', true)
         .single()
 

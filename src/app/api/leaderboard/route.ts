@@ -51,6 +51,7 @@ export async function GET(request: Request) {
     const entries: LeaderboardEntry[] = (leaderboardData || []).map((entry: {
       rank: number
       user_id: string
+      username: string | null
       display_name: string | null
       avatar_url: string | null
       monthly_mcurio: number
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
     }) => ({
       rank: entry.rank,
       userId: entry.user_id,
+      username: entry.username,
       displayName: entry.display_name,
       avatarUrl: entry.avatar_url,
       monthlyCurio: mcurioToCurio(entry.monthly_mcurio),

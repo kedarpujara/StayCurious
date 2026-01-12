@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       let courseContext = ''
       if (courseId) {
         const { data: course } = await supabase
-          .from('courses')
+          .from('course_catalog')
           .select('content')
           .eq('id', courseId)
           .single()

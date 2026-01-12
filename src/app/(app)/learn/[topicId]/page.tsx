@@ -56,17 +56,17 @@ export default function CourseStartPage() {
   })
 
   // Check if course is in progress or completed and should redirect
-  const isInProgress = existingProgress?.status === 'in_progress' && existingProgress?.course_id
-  const isCompleted = existingProgress?.status === 'completed' && existingProgress?.course_id
+  const isInProgress = existingProgress?.status === 'in_progress'
+  const isCompleted = existingProgress?.status === 'completed'
 
-  // Auto-redirect based on course status
+  // Auto-redirect based on course status (now using catalog_course_id directly)
   useEffect(() => {
     if (isInProgress) {
-      router.replace(`/learn/${existingProgress.course_id}/chat`)
+      router.replace(`/learn/${courseId}/chat`)
     } else if (isCompleted) {
-      router.replace(`/learn/${existingProgress.course_id}/complete`)
+      router.replace(`/learn/${courseId}/complete`)
     }
-  }, [isInProgress, isCompleted, existingProgress?.course_id, router])
+  }, [isInProgress, isCompleted, courseId, router])
 
   const handleStartCourse = async () => {
     if (!catalogCourse) return
@@ -82,32 +82,16 @@ export default function CourseStartPage() {
       const content = toDisplayFormat(catalogCourse.content) as CourseContent
       const totalSections = content?.sections?.length || 0
 
-      // Create user's copy of the course
-      const { data: newCourse, error: courseError } = await supabase
-        .from('courses')
-        .insert({
-          user_id: user.id,
-          topic: catalogCourse.topic,
-          intensity: 'solid',
-          time_budget: catalogCourse.estimated_minutes,
-          ai_provider: catalogCourse.ai_provider || 'anthropic',
-          content: catalogCourse.content,
-          quiz_questions: catalogCourse.quiz_questions,
-        })
-        .select()
-        .single()
-
-      if (courseError) throw courseError
-
       // Check if we have an existing saved progress record
       if (existingProgress?.id && existingProgress.status === 'saved') {
         // Update existing saved record to in_progress
         const { error: updateError } = await supabase
           .from('user_course_progress')
           .update({
-            course_id: newCourse.id,
             status: 'in_progress',
             total_sections: totalSections,
+            current_section: content?.sections?.[0]?.id || null,
+            current_section_index: 0,
             started_at: new Date().toISOString(),
             last_accessed_at: new Date().toISOString(),
           })
@@ -118,18 +102,18 @@ export default function CourseStartPage() {
           throw updateError
         }
       } else {
-        // Create new progress record
+        // Create new progress record (no courses table copy needed)
         const { error: insertError } = await supabase
           .from('user_course_progress')
           .insert({
             user_id: user.id,
-            course_id: newCourse.id,
             catalog_course_id: catalogCourse.id,
             current_section: content?.sections?.[0]?.id || null,
             current_section_index: 0,
             total_sections: totalSections,
             sections_completed: [],
             status: 'in_progress',
+            started_at: new Date().toISOString(),
           })
 
         if (insertError) {
@@ -138,10 +122,10 @@ export default function CourseStartPage() {
         }
       }
 
-      // Invalidate queries and go to chat
+      // Invalidate queries and go to chat (using catalog_course_id)
       queryClient.invalidateQueries({ queryKey: ['user-progress'] })
       queryClient.invalidateQueries({ queryKey: ['user-course-progress', courseId] })
-      router.push(`/learn/${newCourse.id}/chat`)
+      router.push(`/learn/${courseId}/chat`)
     } catch (error) {
       console.error('Failed to start course:', error)
       setIsStarting(false)

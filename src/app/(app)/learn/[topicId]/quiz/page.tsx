@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Trophy, ArrowRight, RotateCcw, Sparkles } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Trophy, ArrowRight, RotateCcw, Sparkles, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
 import { PageContainer } from '@/components/layout'
 import { Button, Card, ProgressBar } from '@/components/ui'
 import { useCurio } from '@/hooks/useCurio'
@@ -50,6 +50,8 @@ export default function QuizPage() {
   const [catalogCourseId, setCatalogCourseId] = useState<string | null>(null)
   const [alreadyPassed, setAlreadyPassed] = useState(false)
   const [passedDifficultiesCount, setPassedDifficultiesCount] = useState(0)
+  const [showReview, setShowReview] = useState(false)
+  const [expandedQuestionIndex, setExpandedQuestionIndex] = useState<number | null>(null)
 
   const { addCurio } = useCurio()
 
@@ -59,23 +61,22 @@ export default function QuizPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Fetch course and progress in parallel
-      const [courseResult, progressResult] = await Promise.all([
-        supabase
-          .from('courses')
-          .select('quiz_questions')
-          .eq('id', courseId)
-          .single(),
-        supabase
-          .from('user_course_progress')
-          .select('catalog_course_id')
-          .eq('course_id', courseId)
-          .eq('user_id', user.id)
-          .single(),
-      ])
+      // courseId is now the catalog_course_id
+      setCatalogCourseId(courseId)
 
-      const catalogId = progressResult.data?.catalog_course_id
-      setCatalogCourseId(catalogId || null)
+      // Fetch course from course_catalog
+      const { data: courseData, error: fetchError } = await supabase
+        .from('course_catalog')
+        .select('quiz_questions')
+        .eq('id', courseId)
+        .single()
+
+      if (fetchError) {
+        console.error('Failed to fetch course:', fetchError)
+        return
+      }
+
+      const catalogId = courseId
 
       // Check for previous attempts
       if (catalogId) {
@@ -104,7 +105,6 @@ export default function QuizPage() {
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const courseData = courseResult.data as any
       if (courseData?.quiz_questions) {
         const fullQuiz = courseData.quiz_questions as Quiz
         // Slice questions based on difficulty, but use all available if not enough
@@ -166,7 +166,6 @@ export default function QuizPage() {
       // Record quiz attempt with curio earned
       await supabase.from('quiz_attempts').insert({
         user_id: user.id,
-        course_id: courseId,
         catalog_course_id: catalogCourseId,
         difficulty,
         questions_total: totalQuestions,
@@ -179,13 +178,31 @@ export default function QuizPage() {
       })
 
       // Update progress status
+      const { data: previousProgress } = await supabase
+        .from('user_course_progress')
+        .select('status')
+        .eq('catalog_course_id', courseId)
+        .eq('user_id', user.id)
+        .single()
+
+      const wasAlreadyCompleted = previousProgress?.status === 'completed'
+
       await supabase
         .from('user_course_progress')
         .update({
           status: didPass ? 'completed' : 'in_progress',
+          completed_at: didPass && !wasAlreadyCompleted ? new Date().toISOString() : undefined,
         })
-        .eq('course_id', courseId)
+        .eq('catalog_course_id', courseId)
         .eq('user_id', user.id)
+
+      // Increment courses_completed stat if this is the first time completing this course
+      if (didPass && !wasAlreadyCompleted) {
+        await supabase.rpc('increment_user_stat', {
+          p_user_id: user.id,
+          p_stat: 'courses_completed'
+        })
+      }
 
       // Award curio if passed
       if (didPass && !alreadyPassed && reward > 0) {
@@ -210,6 +227,8 @@ export default function QuizPage() {
     setAnswers([])
     setAttemptNumber(prev => prev + 1)
     setPhase('question')
+    setShowReview(false)
+    setExpandedQuestionIndex(null)
   }
 
   // Calculate expected reward based on attempt number, cross-difficulty, and whether already passed
@@ -231,6 +250,132 @@ export default function QuizPage() {
       </PageContainer>
     )
   }
+
+  // Quiz Review Component
+  const QuizReview = () => (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="w-full max-w-sm mt-4"
+    >
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+          <ClipboardList className="h-5 w-5 text-slate-500" />
+          <span className="font-medium text-slate-900 dark:text-white">Review Answers</span>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {quiz?.questions.map((question, index) => {
+            const userAnswer = answers[index]
+            const isCorrect = userAnswer === question.correctAnswer
+            const isExpanded = expandedQuestionIndex === index
+
+            return (
+              <div key={question.id} className="overflow-hidden">
+                <button
+                  onClick={() => setExpandedQuestionIndex(isExpanded ? null : index)}
+                  className="w-full p-4 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                >
+                  <div className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                    isCorrect
+                      ? "bg-green-100 dark:bg-green-900/50"
+                      : "bg-red-100 dark:bg-red-900/50"
+                  )}>
+                    {isCorrect ? (
+                      <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white line-clamp-1">
+                      Q{index + 1}: {question.question}
+                    </p>
+                    <p className={cn(
+                      "text-xs mt-0.5",
+                      isCorrect ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    )}>
+                      {isCorrect ? 'Correct' : 'Incorrect'}
+                    </p>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronUp className="h-5 w-5 text-slate-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-slate-400 shrink-0" />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 bg-slate-50 dark:bg-slate-800/30">
+                        <p className="text-sm text-slate-700 dark:text-slate-300 mb-3">
+                          {question.question}
+                        </p>
+                        <div className="space-y-2">
+                          {question.options.map((option, optIndex) => {
+                            const isUserAnswer = optIndex === userAnswer
+                            const isCorrectAnswer = optIndex === question.correctAnswer
+
+                            return (
+                              <div
+                                key={optIndex}
+                                className={cn(
+                                  "flex items-center gap-2 p-2 rounded-lg text-sm",
+                                  isCorrectAnswer && "bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800",
+                                  isUserAnswer && !isCorrectAnswer && "bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800",
+                                  !isUserAnswer && !isCorrectAnswer && "bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"
+                                )}
+                              >
+                                <div className={cn(
+                                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                                  isCorrectAnswer && "bg-green-500 text-white",
+                                  isUserAnswer && !isCorrectAnswer && "bg-red-500 text-white",
+                                  !isUserAnswer && !isCorrectAnswer && "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                )}>
+                                  {String.fromCharCode(65 + optIndex)}
+                                </div>
+                                <span className={cn(
+                                  "flex-1",
+                                  isCorrectAnswer && "text-green-800 dark:text-green-200 font-medium",
+                                  isUserAnswer && !isCorrectAnswer && "text-red-800 dark:text-red-200",
+                                  !isUserAnswer && !isCorrectAnswer && "text-slate-600 dark:text-slate-400"
+                                )}>
+                                  {option}
+                                </span>
+                                {isCorrectAnswer && (
+                                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                                )}
+                                {isUserAnswer && !isCorrectAnswer && (
+                                  <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {question.explanation && (
+                          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Explanation</p>
+                            <p className="text-sm text-blue-800 dark:text-blue-200">{question.explanation}</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+    </motion.div>
+  )
 
   // Results - Passed (showCelebration indicates curio was awarded)
   if (phase === 'results' && passed) {
@@ -268,7 +413,7 @@ export default function QuizPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="mb-6"
+              className="mb-6 w-full max-w-sm"
             >
               <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-800">
                 <div className="flex items-center gap-3">
@@ -286,10 +431,25 @@ export default function QuizPage() {
             </motion.div>
           )}
 
+          {/* Review Button */}
+          <Button
+            onClick={() => setShowReview(!showReview)}
+            variant="secondary"
+            className="w-full max-w-sm mb-3"
+            icon={showReview ? <ChevronUp className="h-5 w-5" /> : <ClipboardList className="h-5 w-5" />}
+          >
+            {showReview ? 'Hide Review' : 'Review Answers'}
+          </Button>
+
+          {/* Quiz Review Section */}
+          <AnimatePresence>
+            {showReview && <QuizReview />}
+          </AnimatePresence>
+
           <Button
             onClick={() => router.push('/learn')}
             size="lg"
-            className="w-full max-w-sm"
+            className="w-full max-w-sm mt-4"
             icon={<ArrowRight className="h-5 w-5" />}
           >
             Continue Learning
@@ -328,7 +488,22 @@ export default function QuizPage() {
             </p>
           </Card>
 
-          <div className="flex w-full max-w-sm gap-3">
+          {/* Review Button */}
+          <Button
+            onClick={() => setShowReview(!showReview)}
+            variant="secondary"
+            className="w-full max-w-sm mb-4"
+            icon={showReview ? <ChevronUp className="h-5 w-5" /> : <ClipboardList className="h-5 w-5" />}
+          >
+            {showReview ? 'Hide Review' : 'Review Answers'}
+          </Button>
+
+          {/* Quiz Review Section */}
+          <AnimatePresence>
+            {showReview && <QuizReview />}
+          </AnimatePresence>
+
+          <div className="flex w-full max-w-sm gap-3 mt-4">
             <Button onClick={handleRetry} variant="secondary" className="flex-1">
               Try Again
             </Button>

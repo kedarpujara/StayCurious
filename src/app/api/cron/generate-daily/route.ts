@@ -104,11 +104,11 @@ export async function GET(request: Request) {
 
     console.log('[Cron/Daily] Generating course...')
 
-    // Step 3: Generate course content (skim intensity, 5 minutes)
+    // Step 3: Generate course content
     const { text: courseText } = await generateText({
       model,
       system: COURSE_SYSTEM,
-      prompt: getCoursePrompt(topicData.topic, 'skim', 5),
+      prompt: getCoursePrompt(topicData.topic),
     })
 
     // Parse course content

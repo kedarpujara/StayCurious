@@ -6,9 +6,6 @@ import type { CourseContent } from '@/types'
 
 interface PendingCourse {
   topic: string
-  intensity: 'skim' | 'solid' | 'deep'
-  timeBudget: number
-  backlogItemId?: string
   status: 'generating' | 'completed' | 'error'
   courseId?: string
   content?: CourseContent
@@ -18,12 +15,7 @@ interface PendingCourse {
 
 interface CourseGenerationContextValue {
   pendingCourse: PendingCourse | null
-  startBackgroundGeneration: (
-    topic: string,
-    intensity: 'skim' | 'solid' | 'deep',
-    timeBudget: number,
-    backlogItemId?: string
-  ) => void
+  startBackgroundGeneration: (topic: string, questionId?: string) => void
   clearPendingCourse: () => void
   goToCourse: () => void
   dismissToast: () => void
@@ -38,18 +30,10 @@ export function CourseGenerationProvider({ children }: { children: ReactNode }) 
   const [isToastVisible, setIsToastVisible] = useState(false)
 
   const startBackgroundGeneration = useCallback(
-    async (
-      topic: string,
-      intensity: 'skim' | 'solid' | 'deep',
-      timeBudget: number,
-      backlogItemId?: string
-    ) => {
+    async (topic: string, questionId?: string) => {
       // Set pending state immediately
       setPendingCourse({
         topic,
-        intensity,
-        timeBudget,
-        backlogItemId,
         status: 'generating',
         startedAt: new Date(),
       })
@@ -59,7 +43,7 @@ export function CourseGenerationProvider({ children }: { children: ReactNode }) 
         const res = await fetch('/api/ai/course', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic, intensity, timeBudget, backlogItemId }),
+          body: JSON.stringify({ topic, questionId }),
         })
 
         const data = await res.json()

@@ -15,17 +15,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { topic, intensity, timeBudget, provider, backlogItemId } = await request.json() as {
+    const { topic, provider, questionId } = await request.json() as {
       topic: string
-      intensity: 'skim' | 'solid' | 'deep'
-      timeBudget: number
       provider?: AIProvider
-      backlogItemId?: string
+      questionId?: string
     }
 
-    if (!topic || !intensity || !timeBudget) {
+    if (!topic) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Topic is required' },
         { status: 400 }
       )
     }
@@ -33,13 +31,13 @@ export async function POST(request: Request) {
     const selectedProvider = provider || getDefaultProvider()
     const model = getModel(selectedProvider)
 
-    console.log('[API/Course] Generating for:', { topic, intensity, timeBudget })
+    console.log('[API/Course] Generating for:', { topic })
 
     // Generate course content
     const { text } = await generateText({
       model,
       system: COURSE_SYSTEM,
-      prompt: getCoursePrompt(topic, intensity, timeBudget),
+      prompt: getCoursePrompt(topic),
     })
 
     console.log('[API/Course] Raw AI response length:', text?.length)
@@ -110,54 +108,74 @@ export async function POST(request: Request) {
       console.error('[API/Course] Failed to generate quiz (non-critical):', quizError)
     }
 
-    // Save course to database (with quiz if generated)
-    const { data: course, error: insertError } = await supabase
-      .from('courses')
+    // Save course to course_catalog (unified table for all courses)
+    // Use the AI-generated title if available, otherwise fall back to raw topic
+    const courseTitle = content.title || topic
+    const totalSections = content.sections?.length || 0
+
+    console.log('[API/Course] Using title:', courseTitle)
+
+    const { data: catalogCourse, error: insertError } = await supabase
+      .from('course_catalog')
       .insert({
-        user_id: user.id,
-        backlog_item_id: backlogItemId || null,
-        topic,
-        intensity,
-        time_budget: timeBudget,
-        ai_provider: selectedProvider,
+        topic: courseTitle,
+        source: 'generated',
+        creator_type: 'user',
+        creator_id: user.id,
         content,
-        quiz_questions: quizQuestions,
+        quiz_questions: quizQuestions || { questions: [] },
+        estimated_minutes: 15,
+        section_count: totalSections,
+        ai_provider: selectedProvider,
+        is_published: true,
+        is_vetted: false,
       })
       .select()
       .single()
 
     if (insertError) {
-      console.error('Failed to save course:', insertError)
+      console.error('Failed to save course to catalog:', insertError)
       return NextResponse.json(
         { error: 'Failed to save course' },
         { status: 500 }
       )
     }
 
-    // If there's a backlog item, update its status
-    if (backlogItemId) {
-      await supabase
-        .from('backlog_items')
-        .update({
-          status: 'in_progress',
-          course_id: course.id,
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', backlogItemId)
-        .eq('user_id', user.id)
-    }
-
-    // Create initial learning progress record
-    await supabase
-      .from('learning_progress')
+    // Create user_course_progress record so course appears in "My Courses"
+    const { error: progressError } = await supabase
+      .from('user_course_progress')
       .insert({
         user_id: user.id,
-        course_id: course.id,
-        current_section: content.sections[0]?.id || null,
+        catalog_course_id: catalogCourse.id,
+        status: 'in_progress',
+        current_section_index: 0,
+        current_section: content.sections?.[0]?.id || null,
+        total_sections: totalSections,
+        sections_completed: [],
+        started_at: new Date().toISOString(),
       })
 
+    if (progressError) {
+      console.error('Failed to create course progress:', progressError)
+      // Don't fail the request, course was still created
+    }
+
+    // If this course was generated from a question, link them
+    if (questionId) {
+      const { error: linkError } = await supabase
+        .from('user_questions')
+        .update({ course_id: catalogCourse.id })
+        .eq('id', questionId)
+        .eq('user_id', user.id)
+
+      if (linkError) {
+        console.error('Failed to link question to course:', linkError)
+        // Don't fail the request, course was still created
+      }
+    }
+
     return NextResponse.json({
-      courseId: course.id,
+      courseId: catalogCourse.id,
       content,
     })
   } catch (error) {
