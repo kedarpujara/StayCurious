@@ -19,48 +19,68 @@ export default function ProfilePage() {
   const { theme, setTheme } = useTheme()
   const supabase = createClient()
 
-  // Fetch user stats
+  // Fetch user stats from users table and actual counts
   const { data: stats } = useQuery({
     queryKey: ['user-stats'],
     queryFn: async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return null
 
-      // Get completed courses count from learning_progress
-      const { count: coursesCount } = await supabase
-        .from('learning_progress')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', authUser.id)
-        .eq('status', 'completed')
-
-      // Get quiz passes count from curio_events
-      const { count: quizPasses } = await supabase
-        .from('curio_events')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', authUser.id)
-        .eq('event_type', 'quiz_pass')
-
-      // Get user profile
+      // Get user profile with stats
       const { data: profile } = await supabase
         .from('users')
-        .select('current_streak, longest_streak')
+        .select('questions_asked, courses_completed, quizzes_passed, perfect_quizzes, current_streak, longest_streak, longest_daily_streak')
         .eq('id', authUser.id)
         .single()
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const profileData = profile as any
+      // Fallback: count from user_course_progress if user stats are 0
+      let coursesCompleted = profile?.courses_completed || 0
+      if (coursesCompleted === 0) {
+        const { count } = await supabase
+          .from('user_course_progress')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', authUser.id)
+          .eq('status', 'completed')
+        coursesCompleted = count || 0
+      }
+
+      // Fallback: count quizzes from quiz_attempts if user stats are 0
+      let quizzesPassed = profile?.quizzes_passed || 0
+      if (quizzesPassed === 0) {
+        const { count } = await supabase
+          .from('quiz_attempts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', authUser.id)
+          .eq('passed', true)
+        quizzesPassed = count || 0
+      }
+
       return {
-        quizzesPassed: quizPasses || 0,
-        coursesCompleted: coursesCount || 0,
-        currentStreak: profileData?.current_streak || 0,
-        longestStreak: profileData?.longest_streak || 0,
+        questionsAsked: profile?.questions_asked || 0,
+        quizzesPassed,
+        coursesCompleted,
+        perfectQuizzes: profile?.perfect_quizzes || 0,
+        currentStreak: profile?.current_streak || profile?.longest_daily_streak || 0,
+        longestStreak: profile?.longest_streak || profile?.longest_daily_streak || 0,
       }
     },
   })
 
-  // Badges are displayed from constants - no DB query needed
-  // In the future, we could track earned badges in curio_events
-  const earnedBadges: { badge_id: string }[] = []
+  // Fetch earned badges from user_badges table
+  const { data: earnedBadges = [] } = useQuery({
+    queryKey: ['user-badges'],
+    queryFn: async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) return []
+
+      const { data } = await supabase
+        .from('user_badges')
+        .select('badge_id, awarded_at')
+        .eq('user_id', authUser.id)
+
+      return data || []
+    },
+  })
 
   const nextTitle = getNextTitle(curio)
   const titleProgress = getProgressToNextTitle(curio)
