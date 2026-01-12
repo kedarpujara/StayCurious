@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Mic } from 'lucide-react'
+import { Mic, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { useDeepgram } from '@/hooks/useDeepgram'
 
@@ -22,6 +22,7 @@ export function VoiceButton({
   const [isPressed, setIsPressed] = useState(false)
   const {
     isConnected,
+    isConnecting,
     isListening,
     transcript,
     interimTranscript,
@@ -51,14 +52,14 @@ export function VoiceButton({
   }, [error, onError])
 
   const handleToggle = useCallback(() => {
-    if (disabled) return
+    if (disabled || isConnecting) return
 
     if (isListening) {
       stopListening()
     } else {
       startListening()
     }
-  }, [isListening, startListening, stopListening, disabled])
+  }, [isListening, isConnecting, startListening, stopListening, disabled])
 
   return (
     <div className="relative">
@@ -83,19 +84,23 @@ export function VoiceButton({
       {/* Main button */}
       <motion.button
         onClick={handleToggle}
-        disabled={disabled}
+        disabled={disabled || isConnecting}
         whileTap={{ scale: 0.95 }}
         className={cn(
           'relative z-10 flex h-24 w-24 items-center justify-center rounded-full shadow-lg transition-all duration-200',
           isListening
             ? 'bg-primary-600 text-white shadow-primary-500/30'
+            : isConnecting
+            ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/50 dark:text-primary-400'
             : 'bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
-          disabled && 'cursor-not-allowed opacity-50',
+          (disabled || isConnecting) && 'cursor-not-allowed',
           'focus:outline-none focus:ring-4 focus:ring-primary-500/30'
         )}
-        aria-label={isListening ? 'Stop listening' : 'Start listening'}
+        aria-label={isConnecting ? 'Connecting...' : isListening ? 'Stop listening' : 'Start listening'}
       >
-        {isListening ? (
+        {isConnecting ? (
+          <Loader2 className="h-10 w-10 animate-spin" />
+        ) : isListening ? (
           <motion.div
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
@@ -108,11 +113,15 @@ export function VoiceButton({
       </motion.button>
 
       {/* Connection status */}
-      {!isConnected && !isListening && (
+      {isConnecting ? (
+        <p className="mt-4 text-center text-xs text-primary-500 dark:text-primary-400">
+          Connecting...
+        </p>
+      ) : !isConnected && !isListening ? (
         <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
           Tap to connect
         </p>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 
 interface UseDeepgramReturn {
   isConnected: boolean
+  isConnecting: boolean
   isListening: boolean
   transcript: string
   interimTranscript: string
@@ -15,6 +16,7 @@ interface UseDeepgramReturn {
 
 export function useDeepgram(): UseDeepgramReturn {
   const [isConnected, setIsConnected] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [interimTranscript, setInterimTranscript] = useState('')
@@ -44,6 +46,7 @@ export function useDeepgram(): UseDeepgramReturn {
   const startListening = useCallback(async () => {
     try {
       setError(null)
+      setIsConnecting(true)
 
       // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -71,6 +74,7 @@ export function useDeepgram(): UseDeepgramReturn {
       socketRef.current = socket
 
       socket.onopen = () => {
+        setIsConnecting(false)
         setIsConnected(true)
         setIsListening(true)
 
@@ -116,6 +120,7 @@ export function useDeepgram(): UseDeepgramReturn {
     } catch (err) {
       console.error('Failed to start listening:', err)
       setError(err instanceof Error ? err : new Error('Failed to start listening'))
+      setIsConnecting(false)
       cleanup()
     }
   }, [cleanup])
@@ -147,6 +152,7 @@ export function useDeepgram(): UseDeepgramReturn {
 
   return {
     isConnected,
+    isConnecting,
     isListening,
     transcript,
     interimTranscript,

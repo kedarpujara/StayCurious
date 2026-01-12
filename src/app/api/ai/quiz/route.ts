@@ -25,12 +25,26 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch the course
+    // Verify user has access via user_course_progress
+    const { data: progress, error: progressError } = await supabase
+      .from('user_course_progress')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('catalog_course_id', courseId)
+      .single()
+
+    if (progressError || !progress) {
+      return NextResponse.json(
+        { error: 'Course not found or no access' },
+        { status: 404 }
+      )
+    }
+
+    // Fetch the course from course_catalog
     const { data: course, error: fetchError } = await supabase
-      .from('courses')
+      .from('course_catalog')
       .select('*')
       .eq('id', courseId)
-      .eq('user_id', user.id)
       .single()
 
     if (fetchError || !course) {
@@ -41,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     // Check if quiz already exists
-    if (course.quiz_questions) {
+    if (course.quiz_questions?.questions?.length > 0) {
       return NextResponse.json(course.quiz_questions as Quiz)
     }
 
@@ -77,9 +91,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // Save quiz to course
+    // Save quiz to course_catalog
     const { error: updateError } = await supabase
-      .from('courses')
+      .from('course_catalog')
       .update({ quiz_questions: quiz })
       .eq('id', courseId)
 

@@ -1,35 +1,78 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Keyboard } from 'lucide-react'
+import { Sparkles, Keyboard, BookOpen, Loader2 } from 'lucide-react'
 import { PageContainer } from '@/components/layout'
 import { Button, Card } from '@/components/ui'
 import { VoiceButton } from '@/components/voice/VoiceButton'
 import { LiveTranscript } from '@/components/voice/LiveTranscript'
 import { useAIExplain } from '@/hooks/useAI'
 import { useCurio } from '@/hooks/useCurio'
+import { useCourseGeneration } from '@/contexts/CourseGenerationContext'
 import { getRandomEncouragement, CURIOSITY_ENCOURAGEMENTS, LEARNING_REMINDERS } from '@/constants/microcopy'
 
-export default function AskPage() {
+// Wrapper component to handle Suspense for useSearchParams
+function AskPageContent() {
+  const searchParams = useSearchParams()
   const [transcript, setTranscript] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
   const [showTyping, setShowTyping] = useState(false)
   const [typedQuestion, setTypedQuestion] = useState('')
+  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+  const answerSavedRef = useRef(false)
 
   const { explain, response, isLoading: isExplaining, reset: resetExplanation } = useAIExplain()
   const { addCurio, recentCurio } = useCurio()
+  const { startBackgroundGeneration, pendingCourse } = useCourseGeneration()
 
-  const handleTranscriptUpdate = useCallback((text: string, isFinal: boolean) => {
-    setTranscript(text)
-    if (isFinal && text.trim()) {
-      handleAsk(text)
+  // Check for generate param on mount
+  useEffect(() => {
+    const generateTopic = searchParams.get('generate')
+    if (generateTopic) {
+      // Start generating course immediately
+      handleGenerateCourse(generateTopic)
     }
+  }, [searchParams])
+
+  // Save the answer to the question when explanation completes
+  useEffect(() => {
+    if (!isExplaining && response && currentQuestionId && !answerSavedRef.current) {
+      answerSavedRef.current = true
+      fetch('/api/questions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentQuestionId, answer: response }),
+      }).catch(err => console.error('Failed to save answer:', err))
+    }
+  }, [isExplaining, response, currentQuestionId])
+
+  const handleTranscriptUpdate = useCallback((text: string) => {
+    setTranscript(text)
   }, [])
 
   const handleAsk = async (question: string) => {
     setShowAnswer(true)
+    setCurrentQuestionId(null)
+    answerSavedRef.current = false
+
+    // Save question to database and capture the ID
+    try {
+      const res = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, source: 'ask_page' }),
+      })
+      const data = await res.json()
+      if (data.question?.id) {
+        setCurrentQuestionId(data.question.id)
+      }
+    } catch (error) {
+      console.error('Failed to save question:', error)
+    }
+
     await explain(question)
     addCurio('question_asked')
   }
@@ -39,6 +82,7 @@ export default function AskPage() {
     setTypedQuestion('')
     setShowAnswer(false)
     setShowTyping(false)
+    setCurrentQuestionId(null)
     resetExplanation()
   }
 
@@ -49,6 +93,12 @@ export default function AskPage() {
       handleAsk(typedQuestion)
     }
   }
+
+  const handleGenerateCourse = (question: string) => {
+    startBackgroundGeneration(question, currentQuestionId || undefined)
+  }
+
+  const isGenerating = pendingCourse?.status === 'generating' && pendingCourse?.topic === transcript
 
   return (
     <PageContainer
@@ -198,14 +248,38 @@ export default function AskPage() {
                     </p>
                   </Card>
 
-                  <Button
-                    onClick={handleNewQuestion}
-                    variant="secondary"
-                    size="lg"
-                    className="w-full"
-                  >
-                    Ask Another Question
-                  </Button>
+                  {/* Generate Course CTA */}
+                  <Card variant="highlighted" className="mb-4 bg-gradient-to-r from-primary-50 to-purple-50 dark:from-primary-900/20 dark:to-purple-900/20 border-primary-200 dark:border-primary-800">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900">
+                        <BookOpen className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900 dark:text-white">Want to learn more?</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Generate a full course on this topic
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => handleGenerateCourse(transcript)}
+                        disabled={isGenerating}
+                        icon={isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+                      >
+                        {isGenerating ? 'Generating...' : 'Generate Course'}
+                      </Button>
+                    </div>
+                  </Card>
+
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleNewQuestion}
+                      variant="secondary"
+                      size="lg"
+                      className="flex-1"
+                    >
+                      Ask Another Question
+                    </Button>
+                  </div>
                 </motion.div>
               )}
             </motion.div>
@@ -213,5 +287,20 @@ export default function AskPage() {
         </AnimatePresence>
       </div>
     </PageContainer>
+  )
+}
+
+// Main page component with Suspense boundary for useSearchParams
+export default function AskPage() {
+  return (
+    <Suspense fallback={
+      <PageContainer title="Ask Curio">
+        <div className="flex items-center justify-center pt-12">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+        </div>
+      </PageContainer>
+    }>
+      <AskPageContent />
+    </Suspense>
   )
 }

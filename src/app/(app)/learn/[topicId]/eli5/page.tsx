@@ -51,36 +51,33 @@ export default function ELI5Page() {
 
   const { addCurio } = useCurio()
 
-  // Fetch course data and extract concepts
+  // Fetch course data and extract concepts (courseId is now catalog_course_id)
   const { data: courseData, isLoading } = useQuery({
     queryKey: ['course-eli5', courseId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Get course content
+      // Get course content from course_catalog
       const { data: course, error } = await supabase
-        .from('courses')
-        .select('*, user_course_progress!inner(catalog_course_id)')
+        .from('course_catalog')
+        .select('*')
         .eq('id', courseId)
         .single()
 
       if (error) throw error
 
       // Check if already completed ELI5 for this course
-      const catalogCourseId = course.user_course_progress?.[0]?.catalog_course_id
-      if (catalogCourseId) {
-        const { data: existing } = await supabase
-          .from('eli5_submissions')
-          .select('id, passed')
-          .eq('user_id', user.id)
-          .eq('course_id', catalogCourseId)
-          .eq('passed', true)
-          .single()
+      const { data: existing } = await supabase
+        .from('eli5_submissions')
+        .select('id, passed')
+        .eq('user_id', user.id)
+        .eq('course_id', courseId)
+        .eq('passed', true)
+        .single()
 
-        if (existing) {
-          setAlreadyCompleted(true)
-        }
+      if (existing) {
+        setAlreadyCompleted(true)
       }
 
       return course
@@ -176,37 +173,28 @@ export default function ELI5Page() {
       if (data.overallPassed && !alreadyCompleted) {
         setCurioEarned(ELI5_CURIO_REWARD)
 
-        // Record to database
+        // Record to database (courseId is now catalog_course_id)
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-          const { data: progress } = await supabase
-            .from('user_course_progress')
-            .select('catalog_course_id')
-            .eq('course_id', courseId)
-            .eq('user_id', user.id)
-            .single()
+          const monthKey = new Date().toISOString().slice(0, 7) // YYYY-MM
 
-          if (progress?.catalog_course_id) {
-            const monthKey = new Date().toISOString().slice(0, 7) // YYYY-MM
+          await supabase.from('eli5_submissions').insert({
+            user_id: user.id,
+            course_id: courseId,
+            concepts: concepts.map((c, i) => ({
+              term: c.term,
+              explanation: allExplanations[i],
+              score: data.results[i]?.score || 0,
+            })),
+            passed: true,
+            mcurio_awarded: ELI5_CURIO_REWARD,
+            month_key: monthKey,
+          })
 
-            await supabase.from('eli5_submissions').insert({
-              user_id: user.id,
-              course_id: progress.catalog_course_id,
-              concepts: concepts.map((c, i) => ({
-                term: c.term,
-                explanation: allExplanations[i],
-                score: data.results[i]?.score || 0,
-              })),
-              passed: true,
-              mcurio_awarded: ELI5_CURIO_REWARD,
-              month_key: monthKey,
-            })
-
-            // Award curio
-            await addCurio('eli5_passed', {
-              skipLevelUpToast: true,
-            })
-          }
+          // Award curio
+          await addCurio('eli5_passed', {
+            skipLevelUpToast: true,
+          })
         }
       }
 

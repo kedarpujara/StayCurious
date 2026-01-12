@@ -36,73 +36,39 @@ CRITICAL - Comprehensive Coverage:
 - In the Key Concepts section, organize by TYPE or CATEGORY, not just a list of random facts
 - If a topic has multiple distinct mechanisms or causes, each deserves its own explanation`
 
-export const getCoursePrompt = (
-  topic: string,
-  intensity: 'skim' | 'solid' | 'deep',
-  timeBudget: number
-) => {
-  const intensityGuide = {
-    skim: {
-      description: 'Brief overviews, hitting the key points quickly. Keep explanations concise and punchy.',
-      sectionCount: 4,
-    },
-    solid: {
-      description: 'Good explanations with examples and context. Balance depth with accessibility.',
-      sectionCount: 6,
-    },
-    deep: {
-      description: 'Thorough coverage with nuances, edge cases, examples, and deeper context.',
-      sectionCount: 8,
-    },
-  }
+// Standard section structure for all courses
+const STANDARD_SECTIONS = `[
+  { "id": "why_it_matters", "title": "Why It Matters", "content": "Hook with real-world relevance...", "estimatedMinutes": 2 },
+  { "id": "mental_model", "title": "Mental Model", "content": "Framework for thinking about this...", "estimatedMinutes": 3 },
+  { "id": "key_concepts", "title": "Key Concepts", "content": "Essential building blocks (3-4 concepts)...", "estimatedMinutes": 4 },
+  { "id": "concrete_example", "title": "Concrete Example", "content": "Memorable real-world illustration...", "estimatedMinutes": 3 },
+  { "id": "common_pitfalls", "title": "Common Pitfalls", "content": "What people often get wrong...", "estimatedMinutes": 2 },
+  { "id": "summary", "title": "Summary & Next Steps", "content": "TL;DR + practical tips + quiz prep...", "estimatedMinutes": 1 }
+]`
 
-  const guide = intensityGuide[intensity]
+export const getCoursePrompt = (topic: string) => {
+  return `Generate a structured crash course based on this request: "${topic}"
 
-  // Section structures based on intensity
-  const skimSections = `[
-    { "id": "why_it_matters", "title": "Why It Matters", "content": "Hook with real-world relevance...", "estimatedMinutes": X },
-    { "id": "key_concepts", "title": "Key Concepts", "content": "Essential building blocks (2-3 key points)...", "estimatedMinutes": X },
-    { "id": "quick_example", "title": "Quick Example", "content": "One memorable illustration...", "estimatedMinutes": X },
-    { "id": "takeaway", "title": "Key Takeaway", "content": "The main thing to remember + quiz prep...", "estimatedMinutes": X }
-  ]`
-
-  const solidSections = `[
-    { "id": "why_it_matters", "title": "Why It Matters", "content": "Hook with real-world relevance...", "estimatedMinutes": X },
-    { "id": "mental_model", "title": "Mental Model", "content": "Framework for thinking about this...", "estimatedMinutes": X },
-    { "id": "key_concepts", "title": "Key Concepts", "content": "Essential building blocks (3-4 concepts)...", "estimatedMinutes": X },
-    { "id": "concrete_example", "title": "Concrete Example", "content": "Memorable real-world illustration...", "estimatedMinutes": X },
-    { "id": "common_pitfalls", "title": "Common Pitfalls", "content": "What people often get wrong...", "estimatedMinutes": X },
-    { "id": "summary", "title": "Summary & Next Steps", "content": "TL;DR + practical tips + quiz prep...", "estimatedMinutes": X }
-  ]`
-
-  const deepSections = `[
-    { "id": "why_it_matters", "title": "Why It Matters", "content": "Hook with real-world relevance and context...", "estimatedMinutes": X },
-    { "id": "mental_model", "title": "Mental Model", "content": "Framework for thinking about this topic...", "estimatedMinutes": X },
-    { "id": "key_concepts", "title": "Key Concepts", "content": "Essential building blocks (4-5 concepts with depth)...", "estimatedMinutes": X },
-    { "id": "concrete_example", "title": "Concrete Example", "content": "Detailed real-world illustration...", "estimatedMinutes": X },
-    { "id": "misconceptions", "title": "Common Misconceptions", "content": "What people often get wrong and why...", "estimatedMinutes": X },
-    { "id": "practical_application", "title": "Practical Application", "content": "How to actually use this knowledge...", "estimatedMinutes": X },
-    { "id": "edge_cases", "title": "Nuances & Edge Cases", "content": "When things get tricky...", "estimatedMinutes": X },
-    { "id": "summary", "title": "Summary & Quiz Prep", "content": "TL;DR + what to focus on for the quiz...", "estimatedMinutes": X }
-  ]`
-
-  const sectionTemplate = intensity === 'skim' ? skimSections : intensity === 'solid' ? solidSections : deepSections
-
-  return `Generate a structured crash course on: "${topic}"
-
-Intensity Level: ${intensity.toUpperCase()}
-- ${guide.description}
-- Target: ${guide.sectionCount} sections
-- Time Budget: ${timeBudget} minutes total (distribute across sections)
+Create an engaging, well-balanced course with 6 sections covering the topic comprehensively.
 
 IMPORTANT: Output ONLY valid JSON with no additional text. Use this exact structure:
 
 {
-  "sections": ${sectionTemplate},
-  "totalEstimatedMinutes": ${timeBudget}
+  "title": "Concise Course Title (2-4 words, like 'Coffee Shop Margins' or 'Quantum Computing Basics')",
+  "sections": ${STANDARD_SECTIONS},
+  "totalEstimatedMinutes": 15
 }
 
-Replace X with appropriate minute values that sum to approximately ${timeBudget}. Replace placeholder content with actual, engaging course content.
+TITLE GUIDELINES:
+- Convert the user's question/request into a clean, concise title (2-4 words)
+- Remove filler words like "I want to learn about", "How does", "What is", etc.
+- Use Title Case
+- Examples:
+  - "I wanna learn about the margins of coffee shops" → "Coffee Shop Margins"
+  - "How do airplanes fly?" → "Airplane Flight Mechanics"
+  - "What makes sourdough bread rise?" → "Sourdough Rising Process"
+
+Replace placeholder content with actual, engaging course content. Keep estimated minutes as shown (totaling 15 minutes).
 
 Content Guidelines:
 - Use short paragraphs and clear language

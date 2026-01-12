@@ -41,12 +41,23 @@ export async function POST(request: Request) {
       return new Response('Course ID and action are required', { status: 400 })
     }
 
-    // Fetch the course
+    // Verify user has access via user_course_progress
+    const { data: progress, error: progressError } = await supabase
+      .from('user_course_progress')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('catalog_course_id', courseId)
+      .single()
+
+    if (progressError || !progress) {
+      return new Response('Course not found or no access', { status: 404 })
+    }
+
+    // Fetch the course from course_catalog
     const { data: course, error: fetchError } = await supabase
-      .from('courses')
+      .from('course_catalog')
       .select('*')
       .eq('id', courseId)
-      .eq('user_id', user.id)
       .single()
 
     if (fetchError || !course) {

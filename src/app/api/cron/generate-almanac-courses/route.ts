@@ -12,12 +12,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Map our new depth to the existing intensity for prompts
-const depthToIntensity: Record<CourseDepth, 'skim' | 'solid' | 'deep'> = {
-  quick: 'skim',
-  solid: 'solid',
-  deep: 'deep'
-}
 
 // Generate URL-friendly slug
 function generateSlug(topic: string, depth: string): string {
@@ -41,7 +35,6 @@ async function generateCourseForTopic(
   depth: CourseDepth
 ): Promise<GenerationResult> {
   const config = DEPTH_CONFIG[depth]
-  const intensity = depthToIntensity[depth]
 
   try {
     // Check if already exists in course_catalog
@@ -68,7 +61,7 @@ async function generateCourseForTopic(
     const { text } = await generateText({
       model,
       system: COURSE_SYSTEM,
-      prompt: getCoursePrompt(topicName, intensity, config.minutes),
+      prompt: getCoursePrompt(topicName),
     })
 
     // Parse course content

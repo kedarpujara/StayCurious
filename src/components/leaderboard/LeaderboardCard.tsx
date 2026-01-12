@@ -25,6 +25,9 @@ function getRankStyle(rank: number): string {
 
 export function LeaderboardCard({ entry, showRank = true }: LeaderboardCardProps) {
   const rankEmoji = getRankEmoji(entry.rank)
+  // Prefer username over displayName for privacy
+  const displayText = entry.username ? `@${entry.username}` : (entry.displayName || 'Anonymous')
+  const avatarInitial = entry.username?.[0]?.toUpperCase() || entry.displayName?.[0]?.toUpperCase() || 'U'
 
   return (
     <div
@@ -52,7 +55,7 @@ export function LeaderboardCard({ entry, showRank = true }: LeaderboardCardProps
         {entry.avatarUrl ? (
           <Image
             src={entry.avatarUrl}
-            alt={entry.displayName || 'User'}
+            alt={displayText}
             width={40}
             height={40}
             className="rounded-full"
@@ -60,7 +63,7 @@ export function LeaderboardCard({ entry, showRank = true }: LeaderboardCardProps
         ) : (
           <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center">
             <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
-              {(entry.displayName || 'U')[0].toUpperCase()}
+              {avatarInitial}
             </span>
           </div>
         )}
@@ -73,7 +76,7 @@ export function LeaderboardCard({ entry, showRank = true }: LeaderboardCardProps
             'font-medium truncate',
             entry.isCurrentUser ? 'text-primary-700 dark:text-primary-300' : 'text-slate-900 dark:text-white'
           )}>
-            {entry.displayName || 'Anonymous'}
+            {displayText}
           </span>
           {entry.isCurrentUser && (
             <span className="text-xs px-1.5 py-0.5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full">

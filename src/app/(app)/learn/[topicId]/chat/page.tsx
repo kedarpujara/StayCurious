@@ -24,11 +24,11 @@ export default function LearnChatPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
+      // Fetch the course from course_catalog
       const { data: course, error: fetchError } = await supabase
-        .from('courses')
+        .from('course_catalog')
         .select('*')
         .eq('id', courseId)
-        .eq('user_id', user.id)
         .single()
 
       if (fetchError || !course) {
@@ -39,9 +39,13 @@ export default function LearnChatPage() {
       const { data: progress } = await supabase
         .from('user_course_progress')
         .select('current_section_index, status')
-        .eq('course_id', courseId)
+        .eq('catalog_course_id', courseId)
         .eq('user_id', user.id)
         .single()
+
+      if (!progress) {
+        throw new Error('No progress record found')
+      }
 
       const content = toDisplayFormat(course.content)
       const totalSections = content?.sections?.length || 0
