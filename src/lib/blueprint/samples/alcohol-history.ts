@@ -3,6 +3,7 @@ import type { CourseBlueprint } from '@/types/blueprint'
 export const alcoholHistoryBlueprint: CourseBlueprint = {
   version: 2,
   topic: 'The History of Alcohol',
+  depth: 'solid',
   steps: [
     {
       id: 'step_1',

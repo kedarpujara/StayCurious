@@ -1,5 +1,21 @@
 import type { CourseContent, CourseSection } from '@/types'
 
+// Re-export validation functions
+export { validateBlueprint, validateStep, validateQuiz, formatValidationErrors } from './validation'
+export type { ValidationResult } from './validation'
+
+// Re-export canonicalization functions
+export { canonicalizeBlueprint, hashBlueprintContent } from './canonicalize'
+
+// Re-export renderer functions
+export {
+  renderStepToMarkdown as renderBlueprintStepToMarkdown,
+  renderBlueprintToMarkdown,
+  stepToLegacySection,
+  blueprintToLegacyContent,
+  blueprintToLegacySections,
+} from './renderer'
+
 /**
  * Blueprint format has:
  * - steps: array of step objects with id, title, hook, keyIdea, example, etc.

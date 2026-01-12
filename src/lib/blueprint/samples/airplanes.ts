@@ -3,6 +3,7 @@ import type { CourseBlueprint } from '@/types/blueprint'
 export const airplaneBlueprint: CourseBlueprint = {
   version: 2,
   topic: 'How Do Airplanes Fly?',
+  depth: 'solid',
   steps: [
     {
       id: 'step_1',
