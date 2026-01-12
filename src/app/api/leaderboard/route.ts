@@ -54,9 +54,9 @@ export async function GET(request: Request) {
       display_name: string | null
       avatar_url: string | null
       monthly_mcurio: number
-      quiz_count: number
+      quiz_passes: number
       current_title: string
-      is_eligible: boolean
+      is_curio_club: boolean
     }) => ({
       rank: entry.rank,
       userId: entry.user_id,
@@ -64,11 +64,11 @@ export async function GET(request: Request) {
       avatarUrl: entry.avatar_url,
       monthlyCurio: mcurioToCurio(entry.monthly_mcurio),
       monthlyMcurio: entry.monthly_mcurio,
-      quizCount: entry.quiz_count,
+      quizCount: entry.quiz_passes,
       currentTitle: entry.current_title,
       isCurrentUser: entry.user_id === user.id,
-      isEligible: entry.is_eligible, // Met minimum quiz requirement
-      isCurioClub: entry.is_eligible && entry.rank <= Math.ceil((leaderboardData?.length || 0) * 0.1),
+      isEligible: entry.quiz_passes >= CURIO_CLUB_MIN_QUIZZES,
+      isCurioClub: entry.is_curio_club,
     }))
 
     const position = positionData?.[0]
@@ -78,10 +78,10 @@ export async function GET(request: Request) {
       percentile: position.percentile,
       monthlyCurio: mcurioToCurio(position.monthly_mcurio),
       monthlyMcurio: position.monthly_mcurio,
-      quizCount: position.quiz_count,
+      quizCount: position.quiz_passes,
       isEligible: position.is_eligible,
       isTopTenPercent: position.percentile !== null && position.percentile >= CURIO_CLUB_PERCENTILE,
-      isCurioClub: position.is_eligible && position.percentile !== null && position.percentile >= CURIO_CLUB_PERCENTILE,
+      isCurioClub: position.is_curio_club,
     } : null
 
     return NextResponse.json({

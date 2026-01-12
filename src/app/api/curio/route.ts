@@ -78,6 +78,21 @@ export async function POST(request: Request) {
       throw error
     }
 
+    // Log curio event for leaderboard tracking (mCurio = Curio * 1000)
+    const { error: eventError } = await supabase
+      .from('curio_events')
+      .insert({
+        user_id: user.id,
+        event_type: action === 'quiz_passed' ? 'quiz_pass' : action,
+        mcurio_delta: curioAmount * 1000,
+        breakdown: breakdown || { base: curioAmount },
+      })
+
+    if (eventError) {
+      console.error('Curio event logging error:', eventError)
+      // Don't fail the request, just log the error
+    }
+
     // Update stats based on action
     if (action === 'question_asked') {
       await supabase.rpc('increment_user_stat', { p_user_id: user.id, p_stat: 'questions_asked' })
