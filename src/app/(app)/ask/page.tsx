@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Keyboard, BookOpen, Loader2 } from 'lucide-react'
 import { PageContainer } from '@/components/layout'
-import { Button, Card } from '@/components/ui'
+import { Button, Card, TeachingContent } from '@/components/ui'
 import { VoiceButton } from '@/components/voice/VoiceButton'
 import { LiveTranscript } from '@/components/voice/LiveTranscript'
 import { useAIExplain } from '@/hooks/useAI'
@@ -230,9 +230,7 @@ function AskPageContent() {
                     <span className="text-slate-500 dark:text-slate-400">Thinking...</span>
                   </div>
                 ) : (
-                  <div className="prose prose-slate prose-sm max-w-none dark:prose-invert">
-                    {response}
-                  </div>
+                  <TeachingContent content={response || ''} />
                 )}
               </Card>
 

@@ -9,18 +9,23 @@ Guidelines:
 - Each section should flow naturally into the next
 
 CRITICAL - Markdown Formatting:
-- Use **bold** for key terms and important concepts
+- Use **bold** for key terms and important concepts (2-3 per section)
+- Use ### subheadings to break up each section into 2-3 scannable parts
 - Add a BLANK LINE between every paragraph
 - Add a BLANK LINE before and after bullet lists
-- Add a BLANK LINE before and after numbered lists
-- Each list item should be on its own line
+- Add a BLANK LINE before and after ### subheadings
 - Keep paragraphs short (2-3 sentences max)
-- Use headers (## or ###) to organize subsections within content
 - Example of proper formatting:
+
+### The Big Picture
 
 **Key concept here** is important because of X.
 
-Here's why it matters:
+This connects to everyday life in a surprising way.
+
+### How It Actually Works
+
+Here's what's happening under the hood:
 
 - First point with explanation
 - Second point with details
@@ -33,8 +38,7 @@ CRITICAL - Comprehensive Coverage:
 - For natural phenomena: cover DIFFERENT causes (e.g., for waves: wind-driven, tidal/gravitational, seismic)
 - For concepts: cover different schools of thought, approaches, or applications
 - Explicitly distinguish between commonly confused subtypes (e.g., "tidal waves" vs "tsunamis" vs "wind waves")
-- In the Key Concepts section, organize by TYPE or CATEGORY, not just a list of random facts
-- If a topic has multiple distinct mechanisms or causes, each deserves its own explanation`
+- In the Key Concepts section, organize by TYPE or CATEGORY, not just a list of random facts`
 
 // Standard section structure for all courses
 const STANDARD_SECTIONS = `[

@@ -222,7 +222,7 @@ export function LearnChatContainer({
           last_accessed_at: new Date().toISOString(),
           completed_at: isComplete ? new Date().toISOString() : null,
         })
-        .eq('course_id', courseId)
+        .eq('catalog_course_id', courseId)
         .eq('user_id', user.id)
 
       if (error) {

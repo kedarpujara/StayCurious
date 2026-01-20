@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Trophy, ArrowRight, RotateCcw, Sparkles, CheckCircle, XCircle, ChevronDown, ChevronUp, ClipboardList } from 'lucide-react'
+import { Trophy, ArrowRight, RotateCcw, Sparkles, CheckCircle, XCircle, ChevronDown, ChevronUp, ChevronLeft, ClipboardList } from 'lucide-react'
 import { PageContainer } from '@/components/layout'
 import { Button, Card, ProgressBar } from '@/components/ui'
 import { useCurio } from '@/hooks/useCurio'
@@ -229,6 +229,19 @@ export default function QuizPage() {
     setPhase('question')
     setShowReview(false)
     setExpandedQuestionIndex(null)
+  }
+
+  const handlePrevious = () => {
+    if (currentQuestionIndex === 0) return
+
+    // Remove the last answer (we're undoing it)
+    setAnswers(answers.slice(0, -1))
+
+    // Go back to previous question
+    setCurrentQuestionIndex(currentQuestionIndex - 1)
+
+    // Clear selection so they can pick again
+    setSelectedAnswer(null)
   }
 
   // Calculate expected reward based on attempt number, cross-difficulty, and whether already passed
@@ -597,13 +610,24 @@ export default function QuizPage() {
         })}
       </div>
 
-      {/* Back to Learn link */}
-      <div className="mt-6 text-center">
+      {/* Navigation */}
+      <div className="mt-6 flex items-center justify-between">
+        {currentQuestionIndex > 0 ? (
+          <button
+            onClick={handlePrevious}
+            className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous
+          </button>
+        ) : (
+          <div />
+        )}
         <button
           onClick={() => router.push('/learn')}
           className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
         >
-          ← Back to Learn
+          Exit Quiz
         </button>
       </div>
     </PageContainer>

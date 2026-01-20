@@ -125,7 +125,7 @@ export default function ProfilePage() {
 
       const { data } = await supabase
         .from('user_badges')
-        .select('badge_id, earned_at')
+        .select('badge_id, awarded_at')
         .eq('user_id', authUser.id)
 
       return data || []

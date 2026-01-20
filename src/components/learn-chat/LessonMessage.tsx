@@ -1,8 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils/cn'
+import { TeachingContent } from '@/components/ui'
 
 interface LessonMessageProps {
   role: 'assistant' | 'user'
@@ -40,31 +40,8 @@ export function LessonMessage({
         {isUser ? (
           <p className="text-sm whitespace-pre-wrap">{content}</p>
         ) : (
-          <div
-            className={cn(
-              'prose prose-sm prose-slate max-w-none',
-              'dark:prose-invert',
-              // Better paragraph spacing
-              '[&>p]:mb-3 [&>p]:leading-relaxed [&>p:last-child]:mb-0',
-              // Headers - larger and bolder (relative to prose-sm base)
-              '[&>h2]:text-base [&>h2]:font-bold [&>h2]:mt-4 [&>h2]:mb-2 [&>h2]:text-slate-900 dark:[&>h2]:text-white',
-              '[&>h3]:text-sm [&>h3]:font-semibold [&>h3]:mt-3 [&>h3]:mb-1.5 [&>h3]:text-slate-800 dark:[&>h3]:text-slate-100',
-              // Bold text styling
-              '[&_strong]:font-semibold [&_strong]:text-primary-700 dark:[&_strong]:text-primary-300',
-              // Lists with proper spacing and visible bullets
-              '[&>ul]:my-3 [&>ul]:space-y-1.5 [&>ul]:list-disc [&>ul]:pl-5',
-              '[&>ol]:my-3 [&>ol]:space-y-1.5 [&>ol]:list-decimal [&>ol]:pl-5',
-              '[&_li]:leading-relaxed [&_li]:marker:text-slate-500 dark:[&_li]:marker:text-slate-400',
-              // Blockquotes
-              '[&>blockquote]:border-l-4 [&>blockquote]:border-primary-300 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-3',
-              // Inline code
-              '[&_code]:text-xs [&_code]:bg-slate-200 dark:[&_code]:bg-slate-700 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded'
-            )}
-          >
-            <ReactMarkdown>{content}</ReactMarkdown>
-          </div>
+          <TeachingContent content={content} />
         )}
-
       </div>
     </motion.div>
   )

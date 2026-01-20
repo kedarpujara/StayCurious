@@ -85,19 +85,19 @@ export interface Database {
           id: string
           user_id: string
           badge_id: string
-          earned_at: string
+          awarded_at: string
         }
         Insert: {
           id?: string
           user_id: string
           badge_id: string
-          earned_at?: string
+          awarded_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           badge_id?: string
-          earned_at?: string
+          awarded_at?: string
         }
       }
       courses: {
