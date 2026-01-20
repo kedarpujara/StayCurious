@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, Sparkles, ArrowRight, Play, Bookmark, BookmarkCheck, CheckCircle, Trophy, MessageCircle, Library, Clock, Plus, Loader2, Trash2, ChevronDown, ChevronUp, User, ChevronLeft } from 'lucide-react'
+import { BookOpen, Sparkles, ArrowRight, Play, Bookmark, BookmarkCheck, CheckCircle, Trophy, MessageCircle, Library, Clock, Plus, Loader2, Trash2, ChevronDown, ChevronUp, User, ChevronLeft, FlaskConical } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -14,7 +14,7 @@ import { CATEGORIES } from '@/types'
 import { cn } from '@/lib/utils/cn'
 import { useCourseGeneration } from '@/contexts/CourseGenerationContext'
 
-type TabType = 'my-courses' | 'saved' | 'questions' | 'almanac'
+type TabType = 'my-courses' | 'saved' | 'questions' | 'almanac' | 'sample'
 
 interface AlmanacCategory {
   id: string
@@ -33,6 +33,7 @@ export default function LearnPage() {
   const [generatingQuestionId, setGeneratingQuestionId] = useState<string | null>(null)
   const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null)
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null)
+  const [savingCourseId, setSavingCourseId] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<AlmanacCategory | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<AlmanacCategory | null>(null)
   const supabase = createClient()
@@ -41,6 +42,7 @@ export default function LearnPage() {
   const { startBackgroundGeneration, pendingCourse } = useCourseGeneration()
 
   // Fetch top-level almanac categories with topic counts
+  // OPTIMIZED: Added staleTime to cache results
   const { data: almanacCategories = [], isLoading: categoriesLoading } = useQuery({
     queryKey: ['almanac-categories'],
     queryFn: async () => {
@@ -76,10 +78,12 @@ export default function LearnPage() {
 
       return categoriesWithCounts as AlmanacCategory[]
     },
+    staleTime: 1000 * 60 * 10, // Cache categories for 10 minutes (they rarely change)
   })
 
   // Fetch subcategories for selected category
-  const { data: subcategories = [] } = useQuery({
+  // OPTIMIZED: Added staleTime to cache results
+  const { data: subcategories = [], isLoading: subcategoriesLoading } = useQuery({
     queryKey: ['almanac-subcategories', selectedCategory?.id],
     queryFn: async () => {
       if (!selectedCategory) return []
@@ -107,9 +111,11 @@ export default function LearnPage() {
       return subsWithCounts as AlmanacCategory[]
     },
     enabled: !!selectedCategory,
+    staleTime: 1000 * 60 * 10, // Cache subcategories for 10 minutes
   })
 
   // Fetch topics for selected subcategory with their course status
+  // OPTIMIZED: Added staleTime to cache results
   const { data: subcategoryTopics = [], isLoading: topicsLoading } = useQuery({
     queryKey: ['almanac-topics', selectedSubcategory?.id],
     queryFn: async () => {
@@ -144,16 +150,27 @@ export default function LearnPage() {
       }))
     },
     enabled: !!selectedSubcategory,
+    staleTime: 1000 * 60 * 5, // Cache topics for 5 minutes
   })
 
   // Fetch featured courses from course_catalog with creator info
+  // OPTIMIZED: Select only needed fields (not full content JSONB)
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ['featured-courses'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('course_catalog')
         .select(`
-          *,
+          id,
+          topic,
+          description,
+          category,
+          difficulty,
+          section_count,
+          estimated_minutes,
+          is_featured,
+          source,
+          content,
           creator:creator_id(username)
         `)
         .eq('is_published', true)
@@ -168,10 +185,12 @@ export default function LearnPage() {
       }
       return data || []
     },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   })
 
   // Fetch user's course progress (in progress, saved, and completed)
-  const { data: userProgress = [] } = useQuery({
+  // OPTIMIZED: Select only needed fields, cache for 30 seconds
+  const { data: userProgress = [], isLoading: userProgressLoading, isFetching: userProgressFetching } = useQuery({
     queryKey: ['user-progress'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -180,9 +199,22 @@ export default function LearnPage() {
       const { data, error } = await supabase
         .from('user_course_progress')
         .select(`
-          *,
+          id,
+          user_id,
+          catalog_course_id,
+          current_section_index,
+          total_sections,
+          status,
+          completed_at,
+          last_accessed_at,
           catalog_course:course_catalog(
-            *,
+            id,
+            topic,
+            description,
+            category,
+            difficulty,
+            section_count,
+            source,
             creator:creator_id(username)
           )
         `)
@@ -196,9 +228,11 @@ export default function LearnPage() {
       }
       return data || []
     },
-    refetchOnMount: 'always',
-    staleTime: 0,
+    staleTime: 1000 * 30, // Cache for 30 seconds to reduce refetches
   })
+
+  // Show loading state on initial load OR when refetching with no data
+  const showCoursesLoading = userProgressLoading || (userProgressFetching && userProgress.length === 0)
 
   // Fetch recent questions with linked course info
   const { data: recentQuestions = [] } = useQuery({
@@ -219,9 +253,9 @@ export default function LearnPage() {
         return []
       }
 
-      console.log('Fetched questions:', data)
       return data || []
     },
+    staleTime: 1000 * 60 * 2, // Cache questions for 2 minutes
   })
 
   // Base curio rewards by quiz difficulty
@@ -333,7 +367,7 @@ export default function LearnPage() {
     userProgress.map((p: any) => p.catalog_course_id).filter(Boolean)
   )
 
-  // Mutation to save course
+  // Mutation to save course (with optimistic update to prevent flicker)
   const saveMutation = useMutation({
     mutationFn: async (catalogCourseId: string) => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -355,13 +389,43 @@ export default function LearnPage() {
         })
 
       if (error) throw error
+      return catalogCourseId
     },
-    onSuccess: () => {
+    onMutate: async (catalogCourseId) => {
+      setSavingCourseId(catalogCourseId)
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['user-progress'] })
+
+      // Snapshot current value
+      const previousProgress = queryClient.getQueryData(['user-progress'])
+
+      // Optimistically update by adding a fake saved entry
+      const course = courses.find((c: any) => c.id === catalogCourseId)
+      queryClient.setQueryData(['user-progress'], (old: any[] = []) => [
+        ...old,
+        {
+          id: `temp-${catalogCourseId}`,
+          catalog_course_id: catalogCourseId,
+          status: 'saved',
+          catalog_course: course,
+        },
+      ])
+
+      return { previousProgress }
+    },
+    onError: (_err, _vars, context) => {
+      // Roll back on error
+      if (context?.previousProgress) {
+        queryClient.setQueryData(['user-progress'], context.previousProgress)
+      }
+    },
+    onSettled: () => {
+      setSavingCourseId(null)
       queryClient.invalidateQueries({ queryKey: ['user-progress'] })
     },
   })
 
-  // Mutation to unsave course
+  // Mutation to unsave course (with optimistic update to prevent flicker)
   const unsaveMutation = useMutation({
     mutationFn: async (catalogCourseId: string) => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -375,8 +439,28 @@ export default function LearnPage() {
         .eq('status', 'saved')
 
       if (error) throw error
+      return catalogCourseId
     },
-    onSuccess: () => {
+    onMutate: async (catalogCourseId) => {
+      setSavingCourseId(catalogCourseId)
+      await queryClient.cancelQueries({ queryKey: ['user-progress'] })
+
+      const previousProgress = queryClient.getQueryData(['user-progress'])
+
+      // Optimistically remove the saved entry
+      queryClient.setQueryData(['user-progress'], (old: any[] = []) =>
+        old.filter((p) => p.catalog_course_id !== catalogCourseId || p.status !== 'saved')
+      )
+
+      return { previousProgress }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousProgress) {
+        queryClient.setQueryData(['user-progress'], context.previousProgress)
+      }
+    },
+    onSettled: () => {
+      setSavingCourseId(null)
       queryClient.invalidateQueries({ queryKey: ['user-progress'] })
     },
   })
@@ -432,6 +516,7 @@ export default function LearnPage() {
     { id: 'saved' as TabType, label: 'Saved', icon: Bookmark, count: savedCourses.length },
     { id: 'questions' as TabType, label: 'My Questions', icon: MessageCircle, count: recentQuestions.length },
     { id: 'almanac' as TabType, label: 'Almanac', icon: Library, count: null },
+    { id: 'sample' as TabType, label: 'Sample', icon: FlaskConical, count: null },
   ]
 
   return (
@@ -478,14 +563,64 @@ export default function LearnPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
+            {/* Loading Skeleton */}
+            {showCoursesLoading && (
+              <div className="space-y-8">
+                {/* Continue Learning Skeleton */}
+                <section>
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="h-5 w-5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                    <div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                  </div>
+                  <div className="space-y-3">
+                    {[1, 2].map((i) => (
+                      <Card key={i} className="relative overflow-hidden">
+                        <div className="flex items-start gap-3">
+                          <div className="h-12 w-12 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                            <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                            <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                          </div>
+                          <div className="h-5 w-5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Completed Skeleton */}
+                <section>
+                  <div className="mb-4 flex items-center gap-2">
+                    <div className="h-5 w-5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                    <div className="h-5 w-24 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                  </div>
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Card key={i} className="relative">
+                        <div className="flex items-start gap-3">
+                          <div className="h-12 w-12 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="h-5 w-2/3 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                            <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                          </div>
+                          <div className="h-8 w-20 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
+
             {/* In Progress Section */}
-            {inProgressCourses.length > 0 && (
+            {!showCoursesLoading && inProgressCourses.length > 0 && (
               <section className="mb-8">
                 <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
                   <Clock className="h-5 w-5 text-primary-500" />
                   Continue Learning
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {inProgressCourses.map((progress: any) => {
                     const course = progress.catalog_course
                     if (!course) return null
@@ -495,51 +630,57 @@ export default function LearnPage() {
                       : 0
 
                     return (
-                      <Link key={progress.id} href={`/learn/${progress.catalog_course_id}/chat`}>
-                        <Card variant="interactive" className="relative overflow-hidden">
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900">
-                              <BookOpen className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className="mb-1 font-medium text-slate-900 dark:text-white line-clamp-1">
-                                {course.topic}
-                              </h3>
-                              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                <span>{progress.current_section_index} of {progress.total_sections} sections</span>
-                                <span>({progressPercent}%)</span>
-                                <span className="flex items-center gap-1">
-                                  •
-                                  {course.source === 'almanac' ? (
-                                    <>
-                                      <Library className="h-3 w-3" />
-                                      Almanac
-                                    </>
-                                  ) : course.creator?.username ? (
-                                    <>
-                                      <User className="h-3 w-3" />
-                                      @{course.creator.username}
-                                    </>
-                                  ) : (
-                                    <>
-                                      <User className="h-3 w-3" />
-                                      You
-                                    </>
-                                  )}
-                                </span>
-                              </div>
-                              {/* Progress bar */}
-                              <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700">
-                                <div
-                                  className="h-full rounded-full bg-primary-500 transition-all"
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
-                            </div>
-                            <ArrowRight className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                      <Card key={progress.id} variant="interactive" className="relative overflow-hidden">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900">
+                            <BookOpen className="h-6 w-6 text-primary-600 dark:text-primary-400" />
                           </div>
-                        </Card>
-                      </Link>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="mb-1 font-medium text-slate-900 dark:text-white line-clamp-2">
+                              {course.topic}
+                            </h3>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+                              <span>{progress.current_section_index} of {progress.total_sections} sections</span>
+                              <span>({progressPercent}%)</span>
+                              <span className="flex items-center gap-1">
+                                •
+                                {course.source === 'almanac' ? (
+                                  <>
+                                    <Library className="h-3 w-3" />
+                                    Almanac
+                                  </>
+                                ) : course.creator?.username ? (
+                                  <>
+                                    <User className="h-3 w-3" />
+                                    @{course.creator.username}
+                                  </>
+                                ) : (
+                                  <>
+                                    <User className="h-3 w-3" />
+                                    You
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                          <div
+                            className="h-full rounded-full bg-primary-500 transition-all"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() => router.push(`/learn/${progress.catalog_course_id}/chat`)}
+                            icon={<ArrowRight className="h-4 w-4" />}
+                          >
+                            Continue
+                          </Button>
+                        </div>
+                      </Card>
                     )
                   })}
                 </div>
@@ -547,13 +688,13 @@ export default function LearnPage() {
             )}
 
             {/* Completed Courses Section */}
-            {completedCourses.length > 0 && (
+            {!showCoursesLoading && completedCourses.length > 0 && (
               <section className="mb-8">
                 <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
                   <Trophy className="h-5 w-5 text-amber-500" />
                   Completed
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {completedCourses.map((progress: any) => {
                     const course = progress.catalog_course
                     if (!course) return null
@@ -592,7 +733,7 @@ export default function LearnPage() {
                               <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <h3 className="font-medium text-slate-900 dark:text-white line-clamp-1">
+                              <h3 className="font-medium text-slate-900 dark:text-white line-clamp-2">
                                 {course.topic}
                               </h3>
                               <div className="flex items-center gap-2 text-xs mt-1 flex-wrap">
@@ -630,6 +771,8 @@ export default function LearnPage() {
                                 </span>
                               </div>
                             </div>
+                          </div>
+                          <div className="mt-3 flex justify-end">
                             <Button
                               size="sm"
                               variant={potentialTotal > 0 ? 'primary' : 'secondary'}
@@ -647,7 +790,7 @@ export default function LearnPage() {
             )}
 
             {/* Empty State */}
-            {inProgressCourses.length === 0 && completedCourses.length === 0 && (
+            {!showCoursesLoading && inProgressCourses.length === 0 && completedCourses.length === 0 && (
               <Card className="py-12 text-center">
                 <BookOpen className="mx-auto mb-4 h-12 w-12 text-slate-300 dark:text-slate-600" />
                 <h3 className="mb-2 text-lg font-medium text-slate-900 dark:text-white">
@@ -672,8 +815,26 @@ export default function LearnPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
-            {savedCourses.length > 0 ? (
+            {showCoursesLoading ? (
               <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="relative">
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="h-5 w-2/3 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        <div className="h-8 w-16 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : savedCourses.length > 0 ? (
+              <div className="space-y-4">
                 {savedCourses.map((progress: any) => {
                   const course = progress.catalog_course
                   if (!course) return null
@@ -687,7 +848,7 @@ export default function LearnPage() {
                             {category.icon}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h3 className="font-medium text-slate-900 dark:text-white line-clamp-1">
+                            <h3 className="font-medium text-slate-900 dark:text-white line-clamp-2">
                               {course.topic}
                             </h3>
                             <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500 mt-1">
@@ -695,24 +856,29 @@ export default function LearnPage() {
                               <span className="capitalize">{course.difficulty || 'beginner'}</span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault()
-                                handleToggleSave(course.id, true)
-                              }}
-                              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                            >
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              handleToggleSave(course.id, true)
+                            }}
+                            disabled={savingCourseId === course.id}
+                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                          >
+                            {savingCourseId === course.id ? (
+                              <Loader2 className="h-5 w-5 text-primary-500 animate-spin" />
+                            ) : (
                               <BookmarkCheck className="h-5 w-5 text-primary-500" />
-                            </button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleStartCourse(course.id)}
-                              icon={<Play className="h-4 w-4" />}
-                            >
-                              Start
-                            </Button>
-                          </div>
+                            )}
+                          </button>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() => handleStartCourse(course.id)}
+                            icon={<Play className="h-4 w-4" />}
+                          >
+                            Start
+                          </Button>
                         </div>
                       </Card>
                     </motion.div>
@@ -745,7 +911,7 @@ export default function LearnPage() {
             exit={{ opacity: 0, y: -10 }}
           >
             {recentQuestions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {recentQuestions.map((q: any) => {
                   const hasCourse = !!q.course_id
                   // Use title if available, otherwise raw question
@@ -770,11 +936,11 @@ export default function LearnPage() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-900 dark:text-white line-clamp-1">
+                          <p className="text-sm font-medium text-slate-900 dark:text-white line-clamp-2">
                             {displayTitle || q.question}
                           </p>
                           {hasNiceTitle && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
                               {q.question}
                             </p>
                           )}
@@ -782,47 +948,50 @@ export default function LearnPage() {
                             {new Date(q.created_at).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => deleteQuestionMutation.mutate(q.id)}
+                          disabled={deleteQuestionMutation.isPending}
+                          className="p-2 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors shrink-0"
+                          title="Delete question"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {/* Action buttons row */}
+                      <div className="mt-3 flex items-center justify-between">
+                        <div>
                           {hasAnswer && (
                             <button
                               onClick={() => setExpandedQuestionId(isExpanded ? null : q.id)}
-                              className="p-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
-                              title={isExpanded ? "Hide answer" : "Show answer"}
+                              className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center gap-1"
                             >
-                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {isExpanded ? 'Hide answer' : 'Show answer'}
                             </button>
                           )}
-                          {hasCourse ? (
-                            <Button
-                              size="sm"
-                              onClick={() => router.push(`/learn/${q.course_id}`)}
-                              icon={<Play className="h-4 w-4" />}
-                            >
-                              View Course
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleGenerateCourse(q.id, q.question)}
-                              disabled={isQuestionGenerating(q.id, q.question)}
-                              icon={isQuestionGenerating(q.id, q.question)
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <Plus className="h-4 w-4" />
-                              }
-                            >
-                              {isQuestionGenerating(q.id, q.question) ? 'Generating...' : 'Generate Course'}
-                            </Button>
-                          )}
-                          <button
-                            onClick={() => deleteQuestionMutation.mutate(q.id)}
-                            disabled={deleteQuestionMutation.isPending}
-                            className="p-2 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors"
-                            title="Delete question"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
                         </div>
+                        {hasCourse ? (
+                          <Button
+                            size="sm"
+                            onClick={() => router.push(`/learn/${q.course_id}`)}
+                            icon={<Play className="h-4 w-4" />}
+                          >
+                            View Course
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleGenerateCourse(q.id, q.question)}
+                            disabled={isQuestionGenerating(q.id, q.question)}
+                            icon={isQuestionGenerating(q.id, q.question)
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Plus className="h-4 w-4" />
+                            }
+                          >
+                            {isQuestionGenerating(q.id, q.question) ? 'Generating...' : 'Generate Course'}
+                          </Button>
+                        )}
                       </div>
                       {/* Expandable answer section */}
                       <AnimatePresence>
@@ -988,6 +1157,7 @@ export default function LearnPage() {
                                       e.preventDefault()
                                       handleToggleSave(course.id, isSaved)
                                     }}
+                                    disabled={savingCourseId === course.id}
                                     className={cn(
                                       "p-2 rounded-full transition-colors",
                                       isSaved
@@ -995,7 +1165,13 @@ export default function LearnPage() {
                                         : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                                     )}
                                   >
-                                    {isSaved ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+                                    {savingCourseId === course.id ? (
+                                      <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : isSaved ? (
+                                      <BookmarkCheck className="h-5 w-5" />
+                                    ) : (
+                                      <Bookmark className="h-5 w-5" />
+                                    )}
                                   </button>
                                   <Button
                                     size="sm"
@@ -1039,38 +1215,46 @@ export default function LearnPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  {subcategories.map((sub) => (
-                    <Card
-                      key={sub.id}
-                      variant="interactive"
-                      className="cursor-pointer"
-                      onClick={() => setSelectedSubcategory(sub)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">{sub.icon || '📖'}</span>
-                          <div>
-                            <h3 className="font-medium text-slate-900 dark:text-white">
-                              {sub.name}
-                            </h3>
-                            {sub.description && (
-                              <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">
-                                {sub.description}
-                              </p>
-                            )}
+                {subcategoriesLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {subcategories.map((sub) => (
+                      <Card
+                        key={sub.id}
+                        variant="interactive"
+                        className="cursor-pointer"
+                        onClick={() => setSelectedSubcategory(sub)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">{sub.icon || '📖'}</span>
+                            <div>
+                              <h3 className="font-medium text-slate-900 dark:text-white">
+                                {sub.name}
+                              </h3>
+                              {sub.description && (
+                                <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">
+                                  {sub.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-slate-400 dark:text-slate-500">
+                              {sub.topic_count || 0} topics
+                            </span>
+                            <ArrowRight className="h-4 w-4 text-slate-400" />
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-slate-400 dark:text-slate-500">
-                            {sub.topic_count || 0} topics
-                          </span>
-                          <ArrowRight className="h-4 w-4 text-slate-400" />
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
 
@@ -1165,6 +1349,7 @@ export default function LearnPage() {
                                         e.preventDefault()
                                         handleToggleSave(topic.course.id, isSaved)
                                       }}
+                                      disabled={savingCourseId === topic.course.id}
                                       className={cn(
                                         "p-2 rounded-full transition-colors",
                                         isSaved
@@ -1172,7 +1357,13 @@ export default function LearnPage() {
                                           : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                                       )}
                                     >
-                                      {isSaved ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+                                      {savingCourseId === topic.course.id ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                      ) : isSaved ? (
+                                        <BookmarkCheck className="h-5 w-5" />
+                                      ) : (
+                                        <Bookmark className="h-5 w-5" />
+                                      )}
                                     </button>
                                     <Button
                                       size="sm"
@@ -1197,6 +1388,106 @@ export default function LearnPage() {
                 )}
               </section>
             )}
+          </motion.div>
+        )}
+
+        {/* Sample Tab */}
+        {activeTab === 'sample' && (
+          <motion.div
+            key="sample"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <section>
+              <div className="mb-6 text-center">
+                <FlaskConical className="mx-auto h-12 w-12 text-primary-500 mb-3" />
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                  Test the New Course Format
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                  Generate a sample course with ADHD-friendly formatting: subheadings, chunked content, front-loaded takeaways.
+                </p>
+              </div>
+
+              <Card className="mb-6">
+                <h3 className="font-medium text-slate-900 dark:text-white mb-3">Pick a topic from the Almanac</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { topic: 'Why do we dream?', description: 'The science of dreams and sleep' },
+                    { topic: 'How does compound interest work?', description: 'The power of exponential growth' },
+                    { topic: 'What is the trolley problem?', description: 'Classic ethical dilemmas' },
+                    { topic: 'How do black holes form?', description: 'The death of massive stars' },
+                    { topic: 'What is cryptocurrency?', description: 'Digital money explained' },
+                  ].map((item) => {
+                    const isGenerating = pendingCourse?.status === 'generating' && pendingCourse?.topic === item.topic
+
+                    return (
+                      <button
+                        key={item.topic}
+                        onClick={() => startBackgroundGeneration(item.topic)}
+                        disabled={pendingCourse?.status === 'generating'}
+                        className={cn(
+                          "text-left p-3 rounded-lg border transition-all",
+                          isGenerating
+                            ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+                            : "border-slate-200 dark:border-slate-700 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-slate-50 dark:hover:bg-slate-800",
+                          pendingCourse?.status === 'generating' && !isGenerating && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-white">{item.topic}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{item.description}</p>
+                          </div>
+                          {isGenerating ? (
+                            <Loader2 className="h-5 w-5 text-primary-500 animate-spin" />
+                          ) : (
+                            <Play className="h-5 w-5 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </Card>
+
+              {pendingCourse?.status === 'completed' && pendingCourse?.courseId && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card variant="highlighted" className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900 dark:text-white">Course Ready!</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {pendingCourse.topic}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => router.push(`/learn/${pendingCourse.courseId}/chat`)}
+                        icon={<Play className="h-4 w-4" />}
+                      >
+                        Start Learning
+                      </Button>
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
+
+              <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                <h4 className="font-medium text-slate-900 dark:text-white mb-2">New ADHD-Friendly Features</h4>
+                <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
+                  <li>• <strong>Front-loaded takeaways</strong> - Key point at the start of each section</li>
+                  <li>• <strong>Subheadings (###)</strong> - 2-3 scannable headers per section</li>
+                  <li>• <strong>Chunked content</strong> - Short paragraphs (2-3 sentences max)</li>
+                  <li>• <strong>Visual hierarchy</strong> - Bold terms, bullet points, white space</li>
+                  <li>• <strong>Novelty hooks</strong> - Surprising facts to maintain engagement</li>
+                </ul>
+              </div>
+            </section>
           </motion.div>
         )}
       </AnimatePresence>
