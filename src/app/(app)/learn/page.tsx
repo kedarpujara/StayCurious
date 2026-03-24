@@ -228,7 +228,7 @@ export default function LearnPage() {
       }
       return data || []
     },
-    staleTime: 1000 * 30, // Cache for 30 seconds to reduce refetches
+    staleTime: 0, // Always fetch fresh data on mount so progress is up to date
   })
 
   // Show loading state on initial load OR when refetching with no data
