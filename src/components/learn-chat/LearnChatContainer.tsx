@@ -209,10 +209,13 @@ export function LearnChatContainer({
 
   // Save progress to database
   const saveProgress = useCallback(async (sectionIndex: number, isComplete: boolean = false) => {
+    // Always invalidate so the learn page refetches latest data when user returns
+    queryClient.invalidateQueries({ queryKey: ['user-progress'] })
     try {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      // Use getSession (reads from local storage, no extra network round-trip)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
 
       const { error } = await supabase
         .from('user_course_progress')
@@ -223,13 +226,10 @@ export function LearnChatContainer({
           completed_at: isComplete ? new Date().toISOString() : null,
         })
         .eq('catalog_course_id', courseId)
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
 
       if (error) {
         console.error('Failed to save progress:', error)
-      } else {
-        // Invalidate queries so the learn page shows updated progress
-        queryClient.invalidateQueries({ queryKey: ['user-progress'] })
       }
     } catch (error) {
       console.error('Failed to save progress:', error)
