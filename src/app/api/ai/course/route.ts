@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getModel, getDefaultProvider } from '@/lib/ai/providers'
 import { COURSE_SYSTEM, getCoursePrompt, QUIZ_SYSTEM, getQuizPrompt } from '@/lib/ai/prompts'
+import { isRecentTopic, searchWeb, formatSearchContext } from '@/lib/search'
 import type { AIProvider, CourseContent, Quiz } from '@/types'
 
 export async function POST(request: Request) {
@@ -33,11 +34,22 @@ export async function POST(request: Request) {
 
     console.log('[API/Course] Generating for:', { topic })
 
+    // Fetch web search context for recent/current event topics
+    let searchContext: string | undefined
+    if (isRecentTopic(topic)) {
+      console.log('[API/Course] Recent topic detected, fetching web search context')
+      const searchResponse = await searchWeb(topic)
+      if (searchResponse) {
+        searchContext = formatSearchContext(searchResponse)
+        console.log('[API/Course] Search context ready, length:', searchContext.length)
+      }
+    }
+
     // Generate course content
     const { text } = await generateText({
       model,
       system: COURSE_SYSTEM,
-      prompt: getCoursePrompt(topic),
+      prompt: getCoursePrompt(topic, searchContext),
     })
 
     console.log('[API/Course] Raw AI response length:', text?.length)

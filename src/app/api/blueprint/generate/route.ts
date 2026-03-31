@@ -3,6 +3,7 @@ import { generateText } from 'ai'
 import { createClient } from '@supabase/supabase-js'
 import { getModel, getDefaultProvider } from '@/lib/ai/providers'
 import { BLUEPRINT_SYSTEM, getBlueprintPrompt, BLUEPRINT_QUIZ_SYSTEM, getBlueprintQuizPrompt } from '@/lib/ai/prompts'
+import { isRecentTopic, searchWeb, formatSearchContext } from '@/lib/search'
 import {
   validateBlueprint,
   canonicalizeBlueprint,
@@ -43,11 +44,22 @@ export async function POST(request: Request) {
 
     console.log(`Generating ${depth} blueprint for: ${topic}`)
 
+    // Fetch web search context for recent/current event topics
+    let searchContext: string | undefined
+    if (isRecentTopic(topic)) {
+      console.log('[Blueprint] Recent topic detected, fetching web search context')
+      const searchResponse = await searchWeb(topic)
+      if (searchResponse) {
+        searchContext = formatSearchContext(searchResponse)
+        console.log('[Blueprint] Search context ready, length:', searchContext.length)
+      }
+    }
+
     // Generate the blueprint
     const { text: rawResponse } = await generateText({
       model,
       system: BLUEPRINT_SYSTEM,
-      prompt: getBlueprintPrompt(topic, depth),
+      prompt: getBlueprintPrompt(topic, depth, searchContext),
       temperature: 0.7,
     })
 

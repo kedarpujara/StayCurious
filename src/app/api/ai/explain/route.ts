@@ -2,6 +2,7 @@ import { streamText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
 import { getModel, getDefaultProvider } from '@/lib/ai/providers'
 import { INSTANT_EXPLAIN_SYSTEM, getExplainPrompt } from '@/lib/ai/prompts'
+import { isRecentTopic, searchWeb, formatSearchContext } from '@/lib/search'
 import type { AIProvider } from '@/types'
 
 export async function POST(request: Request) {
@@ -26,11 +27,21 @@ export async function POST(request: Request) {
     const selectedProvider = provider || getDefaultProvider()
     const model = getModel(selectedProvider)
 
+    // Fetch web search context for recent/current event topics
+    let searchContext: string | undefined
+    if (isRecentTopic(question)) {
+      console.log('[Explain] Recent topic detected, fetching web search context')
+      const searchResponse = await searchWeb(question)
+      if (searchResponse) {
+        searchContext = formatSearchContext(searchResponse)
+      }
+    }
+
     // Stream the response
     const result = streamText({
       model,
       system: INSTANT_EXPLAIN_SYSTEM,
-      prompt: getExplainPrompt(question),
+      prompt: getExplainPrompt(question, searchContext),
     })
 
     return result.toTextStreamResponse()

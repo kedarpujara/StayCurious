@@ -94,7 +94,7 @@ function getStepSchema(includeQuickCheck: boolean, includeNextMoves: boolean): s
 // BLUEPRINT GENERATION PROMPT
 // ===========================================
 
-export function getBlueprintPrompt(topic: string, depth: CourseDepth): string {
+export function getBlueprintPrompt(topic: string, depth: CourseDepth, searchContext?: string): string {
   const config = DEPTH_STEP_CONFIG[depth]
   const stepSchema = getStepSchema(config.includeQuickChecks, config.includeNextMoves)
 
@@ -103,7 +103,11 @@ export function getBlueprintPrompt(topic: string, depth: CourseDepth): string {
     .map((type, i) => `  Step ${i + 1}: ${type}`)
     .join('\n')
 
-  return `Generate a ${depth.toUpperCase()} depth course blueprint for: "${topic}"
+  const contextBlock = searchContext
+    ? `${searchContext}\n\n`
+    : ''
+
+  return `${contextBlock}Generate a ${depth.toUpperCase()} depth course blueprint for: "${topic}"
 
 CONFIGURATION:
 - Total steps: ${config.stepCount}

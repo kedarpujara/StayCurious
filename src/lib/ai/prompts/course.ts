@@ -50,8 +50,12 @@ const STANDARD_SECTIONS = `[
   { "id": "summary", "title": "Summary & Next Steps", "content": "TL;DR + practical tips + quiz prep...", "estimatedMinutes": 1 }
 ]`
 
-export const getCoursePrompt = (topic: string) => {
-  return `Generate a structured crash course based on this request: "${topic}"
+export const getCoursePrompt = (topic: string, searchContext?: string) => {
+  const contextBlock = searchContext
+    ? `\n${searchContext}\n`
+    : ''
+
+  return `${contextBlock}Generate a structured crash course based on this request: "${topic}"
 
 Create an engaging, well-balanced course with 6 sections covering the topic comprehensively.
 

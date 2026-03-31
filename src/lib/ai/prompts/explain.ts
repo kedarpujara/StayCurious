@@ -28,6 +28,11 @@ What's even more amazing is that...
 
 Remember: You're sparking curiosity, not delivering a lecture. Make them want to learn more!`
 
-export const getExplainPrompt = (question: string) => `A curious learner just asked: "${question}"
+export const getExplainPrompt = (question: string, searchContext?: string) => {
+  const contextBlock = searchContext
+    ? `${searchContext}\n\n`
+    : ''
+  return `${contextBlock}A curious learner just asked: "${question}"
 
 Give them a satisfying, memorable explanation that sparks more curiosity.`
+}
