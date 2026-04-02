@@ -154,7 +154,11 @@ export function ChatInput({
 
           {/* Switch to typing */}
           <button
-            onClick={() => setInputMode('typing')}
+            onClick={() => {
+              if (isListening) stopListening()
+              setTypedMessage(fullTranscript)
+              setInputMode('typing')
+            }}
             className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 self-center"
           >
             <Keyboard className="h-3 w-3" />
