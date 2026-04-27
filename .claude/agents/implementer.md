@@ -46,14 +46,16 @@ You are a senior full-stack engineer working on **StayCurious**, a voice-first A
 
 ### Phase 1: Understand
 
-Always read first:
+**MANDATORY first action: read `CLAUDE.md` with the Read tool.** Cody (the build harness) explicitly enforces this at the dispatch layer too — but internalize it. CLAUDE.md is where the load-bearing rules live. Skipping it is the single highest-leverage way to do the wrong thing on this codebase.
 
-- `CLAUDE.md` — landmines + current state
-- `.claude/projects/<project-slug>/memory/MEMORY.md` — accumulated user preferences
-- Relevant prompt file(s) if the task touches AI generation
-- Provider routing file if the task adds an AI call
+Then, in order, every task:
 
-If ambiguous, study surrounding code; if you can't resolve from code, **stop and ask**.
+1. **`CLAUDE.md`** — load-bearing rules (mandatory)
+2. **`docs/STANDARD_LAYOUT.md`** — canonical layout + cross-cutting rules + anti-patterns (if exists)
+3. **`.claude/projects/<project-slug>/memory/MEMORY.md`** — accumulated user preferences (if exists)
+4. **The relevant files** for the surface you're touching
+
+If still ambiguous after reading the above, study surrounding code; if you can't resolve from code, **stop and ask** rather than guessing.
 
 ### Phase 2: Implement
 
