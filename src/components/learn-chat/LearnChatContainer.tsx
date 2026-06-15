@@ -254,6 +254,16 @@ export function LearnChatContainer({
       addCurio('section_completed')
       setShowCurioReward(true)
       saveProgress(state.currentSectionIndex + 1, true)
+      // Fire-and-forget: send the refresher email. We don't block the redirect
+      // on it — the server verifies completion before sending, and any failure
+      // is logged server-side.
+      fetch('/api/courses/complete-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId }),
+      }).catch((err) => {
+        console.error('Failed to trigger completion email:', err)
+      })
       setTimeout(() => {
         router.push(`/learn/${courseId}/complete`)
       }, 1500)
