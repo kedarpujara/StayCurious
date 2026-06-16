@@ -190,7 +190,11 @@ export default function LearnPage() {
   })
 
   // Lightweight list of all published almanac course titles for the "Surprise Me" picker
-  const { data: allAlmanacTitles = [] } = useQuery({
+  const {
+    data: allAlmanacTitles = [],
+    isLoading: allAlmanacTitlesLoading,
+    isError: allAlmanacTitlesError,
+  } = useQuery({
     queryKey: ['all-almanac-course-titles'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1128,6 +1132,24 @@ export default function LearnPage() {
                             {randomCourse.topic}
                           </h3>
                         </>
+                      ) : allAlmanacTitlesLoading ? (
+                        <>
+                          <h3 className="font-medium text-slate-900 dark:text-white">
+                            Loading courses…
+                          </h3>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Hang tight, building your random pool.
+                          </p>
+                        </>
+                      ) : allAlmanacTitlesError ? (
+                        <>
+                          <h3 className="font-medium text-slate-900 dark:text-white">
+                            Couldn&apos;t load courses
+                          </h3>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Try refreshing — random picks need the full catalog.
+                          </p>
+                        </>
                       ) : (
                         <>
                           <h3 className="font-medium text-slate-900 dark:text-white">
@@ -1145,10 +1167,24 @@ export default function LearnPage() {
                       size="sm"
                       variant="secondary"
                       onClick={pickRandomCourse}
-                      disabled={allAlmanacTitles.length === 0}
-                      icon={<Shuffle className="h-4 w-4" />}
+                      disabled={
+                        allAlmanacTitlesLoading ||
+                        allAlmanacTitlesError ||
+                        allAlmanacTitles.length === 0
+                      }
+                      icon={
+                        allAlmanacTitlesLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Shuffle className="h-4 w-4" />
+                        )
+                      }
                     >
-                      {randomCourse ? 'Try Another' : 'Surprise Me'}
+                      {allAlmanacTitlesLoading
+                        ? 'Loading…'
+                        : randomCourse
+                          ? 'Try Another'
+                          : 'Surprise Me'}
                     </Button>
                     {randomCourse && (
                       <Button
