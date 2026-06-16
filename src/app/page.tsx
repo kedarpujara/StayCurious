@@ -30,9 +30,8 @@ export default function HomePage() {
         </h1>
 
         <p className="mb-7 max-w-xl text-balance text-base text-slate-600 dark:text-slate-300 sm:text-lg">
-          Ask anything by voice or text. StayCurious instantly builds you a short, structured
-          course — sections, quizzes, and a chat teach-back — so the answer actually lodges in
-          your brain.
+          Ask anything by voice or text. Get a short course with quizzes and a
+          chat to make it stick.
         </p>
 
         {/* Feature row — compact, no scroll */}
@@ -46,7 +45,7 @@ export default function HomePage() {
           href="/login"
           className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-7 py-3.5 text-base font-semibold text-white shadow-lg transition-all hover:bg-primary-700 hover:shadow-xl active:scale-95 dark:bg-primary-500 dark:hover:bg-primary-600"
         >
-          Get started — it&apos;s free
+          Get started for free
           <ArrowRight className="h-5 w-5" />
         </Link>
 
