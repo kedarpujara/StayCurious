@@ -30,8 +30,7 @@ export default function HomePage() {
         </h1>
 
         <p className="mb-7 max-w-xl text-balance text-base text-slate-600 dark:text-slate-300 sm:text-lg">
-          Ask anything by voice or text. Get a short course with quizzes and a
-          chat to make it stick.
+          Ask anything by voice or text. Get a short course with quizzes and chat.
         </p>
 
         {/* Feature row — compact, no scroll */}
