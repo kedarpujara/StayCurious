@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, Sparkles, ArrowRight, Play, Bookmark, BookmarkCheck, CheckCircle, Trophy, MessageCircle, Library, Clock, Plus, Loader2, Trash2, ChevronDown, ChevronUp, User, ChevronLeft, FlaskConical } from 'lucide-react'
+import { BookOpen, Sparkles, ArrowRight, Play, Bookmark, BookmarkCheck, CheckCircle, Trophy, MessageCircle, Library, Clock, Plus, Loader2, Trash2, ChevronDown, ChevronUp, User, ChevronLeft, FlaskConical, Shuffle } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -36,6 +36,7 @@ export default function LearnPage() {
   const [savingCourseId, setSavingCourseId] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<AlmanacCategory | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<AlmanacCategory | null>(null)
+  const [randomCourse, setRandomCourse] = useState<{ id: string; topic: string } | null>(null)
   const supabase = createClient()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -187,6 +188,36 @@ export default function LearnPage() {
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   })
+
+  // Lightweight list of all published almanac course titles for the "Surprise Me" picker
+  const { data: allAlmanacTitles = [] } = useQuery({
+    queryKey: ['all-almanac-course-titles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('course_catalog')
+        .select('id, topic')
+        .eq('is_published', true)
+        .eq('source', 'almanac')
+
+      if (error) throw error
+      return (data || []) as { id: string; topic: string }[]
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+
+  const pickRandomCourse = () => {
+    if (allAlmanacTitles.length === 0) return
+    // Avoid repeating the same course if more than one is available
+    let next = allAlmanacTitles[Math.floor(Math.random() * allAlmanacTitles.length)]
+    if (allAlmanacTitles.length > 1 && randomCourse) {
+      let attempts = 0
+      while (next.id === randomCourse.id && attempts < 5) {
+        next = allAlmanacTitles[Math.floor(Math.random() * allAlmanacTitles.length)]
+        attempts++
+      }
+    }
+    setRandomCourse({ id: next.id, topic: next.topic })
+  }
 
   // Fetch user's course progress (in progress, saved, and completed)
   // OPTIMIZED: Select only needed fields, cache for 30 seconds
@@ -1081,6 +1112,56 @@ export default function LearnPage() {
             {/* Top-level Categories View */}
             {!selectedCategory && !selectedSubcategory && (
               <section>
+                {/* Surprise Me — pick a random course title */}
+                <Card variant="highlighted" className="mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/50">
+                      <Shuffle className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {randomCourse ? (
+                        <>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            Random pick
+                          </p>
+                          <h3 className="font-medium text-slate-900 dark:text-white line-clamp-2">
+                            {randomCourse.topic}
+                          </h3>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="font-medium text-slate-900 dark:text-white">
+                            Can&apos;t decide?
+                          </h3>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Get a random course suggestion.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={pickRandomCourse}
+                      disabled={allAlmanacTitles.length === 0}
+                      icon={<Shuffle className="h-4 w-4" />}
+                    >
+                      {randomCourse ? 'Try Another' : 'Surprise Me'}
+                    </Button>
+                    {randomCourse && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleStartCourse(randomCourse.id)}
+                        icon={<Play className="h-4 w-4" />}
+                      >
+                        Start Course
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+
                 <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
                   Browse the Almanac
                 </h2>
