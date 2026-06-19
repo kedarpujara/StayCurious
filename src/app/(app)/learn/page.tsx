@@ -37,6 +37,7 @@ export default function LearnPage() {
   const [selectedCategory, setSelectedCategory] = useState<AlmanacCategory | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<AlmanacCategory | null>(null)
   const [randomCourse, setRandomCourse] = useState<{ id: string; topic: string } | null>(null)
+  const [showAllInProgress, setShowAllInProgress] = useState(false)
   const supabase = createClient()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -656,7 +657,7 @@ export default function LearnPage() {
                   Continue Learning
                 </h2>
                 <div className="space-y-4">
-                  {inProgressCourses.map((progress: any) => {
+                  {(showAllInProgress ? inProgressCourses : inProgressCourses.slice(0, 3)).map((progress: any) => {
                     const course = progress.catalog_course
                     if (!course) return null
 
@@ -719,6 +720,24 @@ export default function LearnPage() {
                     )
                   })}
                 </div>
+                {inProgressCourses.length > 3 && (
+                  <button
+                    onClick={() => setShowAllInProgress((prev) => !prev)}
+                    className="mt-3 flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                  >
+                    {showAllInProgress ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        Show less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        See {inProgressCourses.length - 3} more
+                      </>
+                    )}
+                  </button>
+                )}
               </section>
             )}
 
