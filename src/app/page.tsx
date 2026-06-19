@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Mic, BookOpen, Trophy, Sparkles, ArrowRight } from 'lucide-react'
+import { Mic, BookOpen, Trophy, Sparkles, ArrowRight, Shuffle } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -48,7 +48,18 @@ export default function HomePage() {
           <ArrowRight className="h-5 w-5" />
         </Link>
 
-        <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          or{' '}
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-1 text-slate-600 underline-offset-2 hover:text-primary-600 hover:underline dark:text-slate-300 dark:hover:text-primary-400 transition-colors"
+          >
+            <Shuffle className="h-3.5 w-3.5" />
+            sign in to try a random course
+          </Link>
+        </p>
+
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
           Earn Curio points · Climb the worldwide learning leaderboard
         </p>
       </section>

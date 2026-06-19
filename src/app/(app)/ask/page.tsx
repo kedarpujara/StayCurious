@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Keyboard, BookOpen, Loader2 } from 'lucide-react'
+import { Sparkles, Keyboard, BookOpen, Loader2, Shuffle } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { PageContainer } from '@/components/layout'
 import { Button, Card, TeachingContent } from '@/components/ui'
 import { VoiceButton } from '@/components/voice/VoiceButton'
@@ -12,10 +13,13 @@ import { useAIExplain } from '@/hooks/useAI'
 import { useCurio } from '@/hooks/useCurio'
 import { useCourseGeneration } from '@/contexts/CourseGenerationContext'
 import { getRandomEncouragement, CURIOSITY_ENCOURAGEMENTS, LEARNING_REMINDERS } from '@/constants/microcopy'
+import { createClient } from '@/lib/supabase/client'
 
 // Wrapper component to handle Suspense for useSearchParams
 function AskPageContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const supabase = createClient()
   const [transcript, setTranscript] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
@@ -27,6 +31,27 @@ function AskPageContent() {
   const { explain, response, isLoading: isExplaining, reset: resetExplanation } = useAIExplain()
   const { addCurio, recentCurio } = useCurio()
   const { startBackgroundGeneration, pendingCourse } = useCourseGeneration()
+
+  // Fetch almanac course list for Surprise Me
+  const { data: almanacCourses = [], isLoading: almanacLoading } = useQuery({
+    queryKey: ['all-almanac-course-titles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('course_catalog')
+        .select('id, topic')
+        .eq('is_published', true)
+        .eq('source', 'almanac')
+      if (error) throw error
+      return (data || []) as { id: string; topic: string }[]
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+
+  const handleSurpriseMe = () => {
+    if (almanacCourses.length === 0) return
+    const pick = almanacCourses[Math.floor(Math.random() * almanacCourses.length)]
+    router.push(`/learn/${pick.id}`)
+  }
 
   // Check for generate param on mount
   useEffect(() => {
@@ -147,6 +172,15 @@ function AskPageContent() {
                   >
                     <Keyboard className="h-4 w-4" />
                     Type instead
+                  </button>
+
+                  <button
+                    onClick={handleSurpriseMe}
+                    disabled={almanacLoading || almanacCourses.length === 0}
+                    className="mt-2 flex items-center gap-1.5 text-sm text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Shuffle className="h-3.5 w-3.5" />
+                    {almanacLoading ? 'Loading…' : 'or try a random course'}
                   </button>
                 </>
               )}
