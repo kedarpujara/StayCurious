@@ -28,7 +28,7 @@ function AskPageContent() {
   const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
   const answerSavedRef = useRef(false)
 
-  const { explain, response, isLoading: isExplaining, reset: resetExplanation } = useAIExplain()
+  const { explain, response, isLoading: isExplaining, error: explainError, reset: resetExplanation } = useAIExplain()
   const { addCurio, recentCurio } = useCurio()
   const { startBackgroundGeneration, pendingCourse } = useCourseGeneration()
 
@@ -265,6 +265,17 @@ function AskPageContent() {
                   <div className="flex items-center gap-3">
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
                     <span className="text-slate-500 dark:text-slate-400">Thinking...</span>
+                  </div>
+                ) : explainError ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">Something went wrong</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{explainError.message}</p>
+                    <button
+                      onClick={() => handleAsk(transcript)}
+                      className="mt-1 self-start text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                    >
+                      Try again
+                    </button>
                   </div>
                 ) : (
                   <TeachingContent content={response || ''} />

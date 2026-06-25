@@ -14,7 +14,7 @@ export function getModel(provider: AIProvider = 'anthropic') {
   if (provider === 'openai') {
     return openai('gpt-4o')
   }
-  return anthropic('claude-sonnet-4-20250514')
+  return anthropic('claude-sonnet-4-5-20250929')
 }
 
 // Faster model for chat - optimized for quick, short responses
