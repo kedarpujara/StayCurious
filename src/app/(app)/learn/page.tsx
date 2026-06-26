@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { TeachingContent } from '@/components/ui/TeachingContent'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, Sparkles, ArrowRight, Play, Bookmark, BookmarkCheck, CheckCircle, Trophy, MessageCircle, Library, Clock, Plus, Loader2, Trash2, ChevronDown, ChevronUp, User, ChevronLeft, FlaskConical, Shuffle } from 'lucide-react'
 import Link from 'next/link'
@@ -1058,9 +1059,11 @@ export default function LearnPage() {
                           >
                             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Quick Answer</p>
-                              <div className="text-sm text-slate-700 dark:text-slate-300 prose prose-sm max-w-none dark:prose-invert">
-                                {q.answer}
-                              </div>
+                              <TeachingContent
+                                content={q.answer}
+                                size="sm"
+                                className="prose prose-sm dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300"
+                              />
                             </div>
                           </motion.div>
                         )}
