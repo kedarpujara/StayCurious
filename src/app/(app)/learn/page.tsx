@@ -1062,7 +1062,7 @@ export default function LearnPage() {
                               <TeachingContent
                                 content={q.answer}
                                 size="sm"
-                                className="text-sm text-slate-700 dark:text-slate-300"
+                                className="prose prose-sm dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300"
                               />
                             </div>
                           </motion.div>
