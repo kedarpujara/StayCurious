@@ -56,6 +56,13 @@ export default function QuizPage() {
 
   const { addCurio } = useCurio()
 
+  // Clean up the auto-advance timer on unmount
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
+    }
+  }, [])
+
   // Fetch quiz questions and previous attempts
   useEffect(() => {
     async function loadQuiz() {
