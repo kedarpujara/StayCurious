@@ -12,7 +12,16 @@ Guidelines:
 - Make questions progressively more challenging
 - Write plausible distractors (wrong answers should be reasonable mistakes)
 - Keep question text clear and concise
-- Explanations should teach, not just confirm`
+- Explanations should teach, not just confirm
+
+ANSWER OPTION STYLE - CRITICAL:
+- Keep answer options SHORT and CONCEPTUAL (5-8 words max per option)
+- Do NOT use scientific names, technical jargon, or proper nouns in the options themselves
+- Use plain language that describes the concept, not the specific term
+- Avoid naming specific examples in the options; test the concept instead
+- Bad example: "Lactobacillus and Bifidobacterium" → Good example: "Beneficial gut bacteria"
+- Bad example: "The mitochondrial electron transport chain" → Good example: "Energy production in cells"
+- All four options for a question should be similar in length and specificity`
 
 export const getQuizPrompt = (topic: string, sectionSummary: string) => `Generate a quiz for the following course content:
 
@@ -48,4 +57,5 @@ Important:
 - Questions 6-10 should be more challenging (medium/hard difficulty)
 - Each explanation should be 1-2 sentences
 - Shuffle the position of correct answers (don't always put them first)
-- CRITICAL: Every question must be answerable from the content summary above - do NOT include questions about topics not explicitly covered in the material`
+- CRITICAL: Every question must be answerable from the content summary above - do NOT include questions about topics not explicitly covered in the material
+- CRITICAL: Answer options must be short, plain-language phrases (5-8 words max). No scientific names or jargon in the options.`
