@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, ArrowRight, RotateCcw, Sparkles, CheckCircle, XCircle, ChevronDown, ChevronUp, ChevronLeft, ClipboardList } from 'lucide-react'
@@ -42,6 +42,7 @@ export default function QuizPage() {
   const [phase, setPhase] = useState<QuizPhase>('loading')
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [answers, setAnswers] = useState<number[]>([])
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
@@ -135,8 +136,12 @@ export default function QuizPage() {
 
     if (currentQuestionIndex < totalQuestions - 1) {
       // Small delay for visual feedback that answer was selected
-      setTimeout(() => {
-        setCurrentQuestionIndex(currentQuestionIndex + 1)
+      // Capture the next index at call time to avoid stale closure
+      const nextIndex = currentQuestionIndex + 1
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = setTimeout(() => {
+        advanceTimerRef.current = null
+        setCurrentQuestionIndex(nextIndex)
         setSelectedAnswer(null)
       }, 300)
     } else {
@@ -222,6 +227,10 @@ export default function QuizPage() {
   }
 
   const handleRetry = () => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
     setCurrentQuestionIndex(0)
     setSelectedAnswer(null)
     setAnswers([])
@@ -234,13 +243,17 @@ export default function QuizPage() {
   const handlePrevious = () => {
     if (currentQuestionIndex === 0) return
 
+    // Cancel any pending auto-advance so it doesn't fire after we navigate back
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current)
+      advanceTimerRef.current = null
+    }
+
     // Remove the last answer (we're undoing it)
     setAnswers(answers.slice(0, -1))
 
-    // Go back to previous question
+    // Go back to previous question with no selection pre-filled
     setCurrentQuestionIndex(currentQuestionIndex - 1)
-
-    // Clear selection so they can pick again
     setSelectedAnswer(null)
   }
 
