@@ -1,38 +1,65 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  Suspense,
+  KeyboardEvent,
+} from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Keyboard, BookOpen, Loader2, Shuffle } from 'lucide-react'
+import { Send, Mic, MicOff, BookOpen, Loader2, Sparkles, Shuffle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { PageContainer } from '@/components/layout'
-import { Button, Card, TeachingContent } from '@/components/ui'
-import { VoiceButton } from '@/components/voice/VoiceButton'
-import { LiveTranscript } from '@/components/voice/LiveTranscript'
-import { useAIExplain } from '@/hooks/useAI'
+import { TeachingContent } from '@/components/ui'
+import { useDeepgram } from '@/hooks/useDeepgram'
 import { useCurio } from '@/hooks/useCurio'
 import { useCourseGeneration } from '@/contexts/CourseGenerationContext'
-import { getRandomEncouragement, CURIOSITY_ENCOURAGEMENTS, LEARNING_REMINDERS } from '@/constants/microcopy'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils/cn'
 
-// Wrapper component to handle Suspense for useSearchParams
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  isStreaming?: boolean
+  error?: string
+  questionId?: string
+}
+
+function generateId() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
 function AskPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
-  const [transcript, setTranscript] = useState('')
-  const [isListening, setIsListening] = useState(false)
-  const [showAnswer, setShowAnswer] = useState(false)
-  const [showTyping, setShowTyping] = useState(false)
-  const [typedQuestion, setTypedQuestion] = useState('')
-  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
-  const answerSavedRef = useRef(false)
 
-  const { explain, response, isLoading: isExplaining, error: explainError, reset: resetExplanation } = useAIExplain()
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [inputValue, setInputValue] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const hasHandledSearchParam = useRef(false)
+
   const { addCurio, recentCurio } = useCurio()
-  const { startBackgroundGeneration, pendingCourse } = useCourseGeneration()
+  const { startBackgroundGeneration, pendingCourse, goToCourse } = useCourseGeneration()
 
-  // Fetch almanac course list for Surprise Me
+  const {
+    isListening,
+    isConnecting,
+    transcript: voiceTranscript,
+    interimTranscript,
+    startListening,
+    stopListening,
+    reset: resetVoice,
+  } = useDeepgram()
+
+  // Almanac courses for Surprise Me
   const { data: almanacCourses = [], isLoading: almanacLoading } = useQuery({
     queryKey: ['all-almanac-course-titles'],
     queryFn: async () => {
@@ -53,83 +80,192 @@ function AskPageContent() {
     router.push(`/learn/${pick.id}`)
   }
 
-  // Check for generate param on mount
+  const buildHistory = (msgs: ChatMessage[]) =>
+    msgs
+      .filter((m) => !m.isStreaming && !m.error && m.content)
+      .map((m) => ({ role: m.role, content: m.content }))
+
+  const sendRequest = useCallback(
+    async (question: string, assistantId: string, history: { role: string; content: string }[]) => {
+      // Save question to DB
+      let questionId: string | undefined
+      try {
+        const res = await fetch('/api/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, source: 'ask_page' }),
+        })
+        const data = await res.json()
+        if (data.question?.id) {
+          questionId = data.question.id
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, questionId } : m))
+          )
+        }
+      } catch {
+        // Non-fatal — continue without DB record
+      }
+
+      const abort = new AbortController()
+      abortRef.current = abort
+
+      try {
+        const res = await fetch('/api/ai/explain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, history }),
+          signal: abort.signal,
+        })
+
+        if (!res.ok || !res.body) {
+          throw new Error('Failed to get explanation')
+        }
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let accumulated = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value, { stream: true })
+          accumulated += chunk
+          const snapshot = accumulated
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: snapshot, isStreaming: true }
+                : m
+            )
+          )
+        }
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: accumulated, isStreaming: false }
+              : m
+          )
+        )
+
+        // Save answer to question record
+        if (questionId && accumulated) {
+          fetch('/api/questions', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: questionId, answer: accumulated }),
+          }).catch((err) => console.error('Failed to save answer:', err))
+        }
+
+        addCurio('question_asked')
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        const message = err instanceof Error ? err.message : 'Something went wrong'
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, isStreaming: false, error: message }
+              : m
+          )
+        )
+      } finally {
+        setIsSubmitting(false)
+        abortRef.current = null
+        setTimeout(() => inputRef.current?.focus(), 100)
+      }
+    },
+    [addCurio]
+  )
+
+  const handleSend = useCallback(
+    async (question: string) => {
+      const trimmed = question.trim()
+      if (!trimmed || isSubmitting) return
+
+      // Stop voice if active
+      if (isListening) stopListening()
+      resetVoice()
+      setInputValue('')
+      setIsSubmitting(true)
+
+      // Snapshot history from current messages before adding new ones
+      const history = buildHistory(messages)
+
+      const userMsg: ChatMessage = { id: generateId(), role: 'user', content: trimmed }
+      const assistantId = generateId()
+      const assistantMsg: ChatMessage = {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+      }
+
+      setMessages((prev) => [...prev, userMsg, assistantMsg])
+      await sendRequest(trimmed, assistantId, history)
+    },
+    [isSubmitting, isListening, stopListening, resetVoice, messages, sendRequest]
+  )
+
+  // Stable ref so the ?generate= effect always calls the latest handleSend
+  const handleSendRef = useRef(handleSend)
   useEffect(() => {
+    handleSendRef.current = handleSend
+  }, [handleSend])
+
+  // Sync voice transcript into input field
+  useEffect(() => {
+    const full = voiceTranscript + (interimTranscript ? ' ' + interimTranscript : '')
+    if (full.trim()) {
+      setInputValue(full.trim())
+    }
+  }, [voiceTranscript, interimTranscript])
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Handle ?generate= search param on mount — uses ref to avoid stale closure
+  useEffect(() => {
+    if (hasHandledSearchParam.current) return
     const generateTopic = searchParams.get('generate')
     if (generateTopic) {
-      // Start generating course immediately
-      handleGenerateCourse(generateTopic)
+      hasHandledSearchParam.current = true
+      handleSendRef.current(generateTopic)
     }
   }, [searchParams])
 
-  // Save the answer to the question when explanation completes
-  useEffect(() => {
-    if (!isExplaining && response && currentQuestionId && !answerSavedRef.current) {
-      answerSavedRef.current = true
-      fetch('/api/questions', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: currentQuestionId, answer: response }),
-      }).catch(err => console.error('Failed to save answer:', err))
-    }
-  }, [isExplaining, response, currentQuestionId])
-
-  const handleTranscriptUpdate = useCallback((text: string) => {
-    setTranscript(text)
-  }, [])
-
-  const handleAsk = async (question: string) => {
-    setShowAnswer(true)
-    setCurrentQuestionId(null)
-    answerSavedRef.current = false
-
-    // Save question to database and capture the ID
-    try {
-      const res = await fetch('/api/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, source: 'ask_page' }),
-      })
-      const data = await res.json()
-      if (data.question?.id) {
-        setCurrentQuestionId(data.question.id)
-      }
-    } catch (error) {
-      console.error('Failed to save question:', error)
-    }
-
-    await explain(question)
-    addCurio('question_asked')
-  }
-
-  const handleNewQuestion = () => {
-    setTranscript('')
-    setTypedQuestion('')
-    setShowAnswer(false)
-    setShowTyping(false)
-    setCurrentQuestionId(null)
-    resetExplanation()
-  }
-
-  const handleTypedSubmit = () => {
-    if (typedQuestion.trim()) {
-      setTranscript(typedQuestion)
-      setShowTyping(false)
-      handleAsk(typedQuestion)
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend(inputValue)
     }
   }
 
-  const handleGenerateCourse = (question: string) => {
-    startBackgroundGeneration(question, currentQuestionId || undefined)
+  const handleVoiceToggle = () => {
+    if (isListening) {
+      stopListening()
+    } else {
+      startListening()
+    }
   }
 
-  const isGenerating = pendingCourse?.status === 'generating' && pendingCourse?.topic === transcript
+  const handleGenerateCourse = (topic: string, questionId?: string) => {
+    startBackgroundGeneration(topic, questionId)
+  }
+
+  const isCourseGeneratingForTopic = (topic: string) =>
+    pendingCourse?.status === 'generating' && pendingCourse.topic === topic
+
+  const isCourseReadyForTopic = (topic: string) =>
+    pendingCourse?.status === 'completed' && pendingCourse.topic === topic
 
   return (
     <PageContainer
       title="Ask Curio"
+      noPadding
       headerRight={
-        recentCurio > 0 && (
+        recentCurio > 0 ? (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -138,214 +274,220 @@ function AskPageContent() {
             <Sparkles className="h-4 w-4" />
             +{recentCurio}
           </motion.div>
-        )
+        ) : undefined
       }
     >
-      <div className="flex flex-col items-center">
-        <AnimatePresence mode="wait">
-          {!showAnswer ? (
-            <motion.div
-              key="input"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex w-full flex-col items-center pt-8"
-            >
-              <p className="mb-8 text-center text-slate-500 dark:text-slate-400">
-                {isListening ? "I'm listening..." : 'Tap to ask anything'}
-              </p>
-
-              {!showTyping && (
-                <>
-                  <VoiceButton
-                    onTranscriptUpdate={handleTranscriptUpdate}
-                    onListeningChange={setIsListening}
-                    disabled={isExplaining}
-                  />
-
-                  <button
-                    onClick={() => {
-                      setTypedQuestion(transcript)
-                      setShowTyping(true)
-                    }}
-                    className="mt-6 flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-                  >
-                    <Keyboard className="h-4 w-4" />
-                    Type instead
-                  </button>
-
-                  <button
-                    onClick={handleSurpriseMe}
-                    disabled={almanacLoading || almanacCourses.length === 0}
-                    className="mt-2 flex items-center gap-1.5 text-sm text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Shuffle className="h-3.5 w-3.5" />
-                    {almanacLoading ? 'Loading…' : 'or try a random course'}
-                  </button>
-                </>
-              )}
-
-              {showTyping && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-md"
-                >
-                  <textarea
-                    value={typedQuestion}
-                    onChange={(e) => setTypedQuestion(e.target.value)}
-                    placeholder="What do you want to know?"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-lg focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder-slate-400 resize-none"
-                    rows={3}
-                    autoFocus
-                  />
-                  <div className="mt-3 flex gap-3">
-                    <Button
-                      onClick={() => setShowTyping(false)}
-                      variant="secondary"
-                      className="flex-1"
-                    >
-                      Use Voice
-                    </Button>
-                    <Button
-                      onClick={handleTypedSubmit}
-                      className="flex-1"
-                      disabled={!typedQuestion.trim()}
-                    >
-                      Ask
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
-
-              {!showTyping && (
-                <div className="mt-8 min-h-[60px] w-full max-w-md">
-                  <LiveTranscript
-                    transcript={transcript}
-                    isListening={isListening}
-                  />
+      <div className="flex h-[calc(100vh-7rem)] flex-col">
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <AnimatePresence initial={false}>
+            {messages.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex h-full flex-col items-center justify-center gap-4 text-center"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/40">
+                  <Sparkles className="h-8 w-8 text-primary-500" />
                 </div>
-              )}
-
-              {transcript.trim() && !isListening && !showTyping && (
-                <Button
-                  onClick={() => handleAsk(transcript)}
-                  className="mt-4"
-                  size="lg"
+                <div>
+                  <p className="text-lg font-semibold text-slate-800 dark:text-white">
+                    What are you curious about?
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Ask anything — follow up as much as you like
+                  </p>
+                </div>
+                <button
+                  onClick={handleSurpriseMe}
+                  disabled={almanacLoading || almanacCourses.length === 0}
+                  className="mt-2 flex items-center gap-1.5 text-sm text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Get Answer
-                </Button>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="answer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full pt-4"
-            >
-              <Card variant="highlighted" className="mb-4">
-                <p className="text-sm font-medium text-primary-700 dark:text-primary-300">Your question</p>
-                <p className="mt-1 text-slate-900 dark:text-white">{transcript}</p>
-              </Card>
-
-              {!isExplaining && response && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mb-3 text-center text-sm text-primary-600 dark:text-primary-400"
-                >
-                  {getRandomEncouragement(CURIOSITY_ENCOURAGEMENTS)}
-                </motion.p>
-              )}
-
-              <Card className="mb-4">
-                {isExplaining && !response ? (
-                  <div className="flex items-center gap-3">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-                    <span className="text-slate-500 dark:text-slate-400">Thinking...</span>
-                  </div>
-                ) : explainError ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm font-medium text-red-600 dark:text-red-400">Something went wrong</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{explainError.message}</p>
-                    <button
-                      onClick={() => handleAsk(transcript)}
-                      className="mt-1 self-start text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                    >
-                      Try again
-                    </button>
-                  </div>
-                ) : (
-                  <TeachingContent content={response || ''} />
-                )}
-              </Card>
-
-              {!isExplaining && response && (
+                  <Shuffle className="h-3.5 w-3.5" />
+                  {almanacLoading ? 'Loading…' : 'or try a random course'}
+                </button>
+              </motion.div>
+            ) : (
+              messages.map((msg, index) => (
                 <motion.div
+                  key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
+                  className={cn(
+                    'mb-4',
+                    msg.role === 'user' ? 'flex justify-end' : 'flex flex-col justify-start'
+                  )}
                 >
-                  <Card variant="default" className="mb-4 bg-slate-50 dark:bg-slate-800/50">
-                    <p className="text-center text-sm italic text-slate-500 dark:text-slate-400">
-                      {getRandomEncouragement(LEARNING_REMINDERS)}
-                    </p>
-                  </Card>
-
-                  {/* Generate Course CTA */}
-                  <Card variant="highlighted" className="mb-4 bg-gradient-to-r from-primary-50 to-purple-50 dark:from-primary-900/20 dark:to-purple-900/20 border-primary-200 dark:border-primary-800">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900">
-                        <BookOpen className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900 dark:text-white">Want to learn more?</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Generate a full course on this topic
-                        </p>
-                      </div>
-                      <Button
-                        onClick={() => handleGenerateCourse(transcript)}
-                        disabled={isGenerating}
-                        icon={isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-                      >
-                        {isGenerating ? 'Generating...' : 'Generate Course'}
-                      </Button>
+                  {msg.role === 'user' ? (
+                    <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-primary-600 px-4 py-2.5 text-white dark:bg-primary-500">
+                      <p className="text-sm leading-relaxed">{msg.content}</p>
                     </div>
-                  </Card>
+                  ) : (
+                    <>
+                      {msg.error ? (
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                          <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                            Something went wrong
+                          </p>
+                          <p className="mt-1 text-sm text-red-500 dark:text-red-400">
+                            {msg.error}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+                          {msg.isStreaming && !msg.content ? (
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+                              <span className="text-sm">Thinking…</span>
+                            </div>
+                          ) : (
+                            <TeachingContent content={msg.content} />
+                          )}
+                          {msg.isStreaming && msg.content && (
+                            <span className="mt-1 inline-block h-4 w-0.5 animate-pulse bg-primary-500" />
+                          )}
+                        </div>
+                      )}
 
-                  <div className="flex gap-3">
-                    <Button
-                      onClick={handleNewQuestion}
-                      variant="secondary"
-                      size="lg"
-                      className="flex-1"
-                    >
-                      Ask Another Question
-                    </Button>
-                  </div>
+                      {/* Action pills — shown after streaming completes */}
+                      {!msg.isStreaming && msg.content && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="mt-2 flex flex-wrap gap-2"
+                        >
+                          {(() => {
+                            const userMsg = messages[index - 1]
+                            const topic = userMsg?.content ?? ''
+                            if (isCourseReadyForTopic(topic)) {
+                              return (
+                                <button
+                                  onClick={goToCourse}
+                                  className="flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
+                                >
+                                  <BookOpen className="h-3.5 w-3.5" />
+                                  View Course
+                                </button>
+                              )
+                            }
+                            return (
+                              <button
+                                onClick={() => handleGenerateCourse(topic, msg.questionId)}
+                                disabled={isCourseGeneratingForTopic(topic)}
+                                className="flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-primary-700 dark:bg-primary-900/20 dark:text-primary-400 dark:hover:bg-primary-900/40"
+                              >
+                                {isCourseGeneratingForTopic(topic) ? (
+                                  <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Generating…
+                                  </>
+                                ) : (
+                                  <>
+                                    <BookOpen className="h-3.5 w-3.5" />
+                                    Generate Course
+                                  </>
+                                )}
+                              </button>
+                            )
+                          })()}
+                        </motion.div>
+                      )}
+                    </>
+                  )}
                 </motion.div>
+              ))
+            )}
+          </AnimatePresence>
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input bar */}
+        <div className="border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-end gap-2">
+            {/* Mic button */}
+            <button
+              onClick={handleVoiceToggle}
+              disabled={isSubmitting}
+              className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all',
+                isListening
+                  ? 'bg-red-100 text-red-600 ring-2 ring-red-400 dark:bg-red-900/30 dark:text-red-400'
+                  : isConnecting
+                  ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
+                isSubmitting && 'cursor-not-allowed opacity-50'
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+            >
+              {isConnecting ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isListening ? (
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                >
+                  <MicOff className="h-5 w-5" />
+                </motion.div>
+              ) : (
+                <Mic className="h-5 w-5" />
+              )}
+            </button>
+
+            {/* Text input */}
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={isListening ? 'Listening…' : 'Ask anything…'}
+              rows={1}
+              disabled={isSubmitting}
+              className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500 dark:focus:border-primary-500"
+              style={{ maxHeight: '120px', overflowY: 'auto' }}
+              onInput={(e) => {
+                const el = e.currentTarget
+                el.style.height = 'auto'
+                el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+              }}
+            />
+
+            {/* Send button */}
+            <button
+              onClick={() => handleSend(inputValue)}
+              disabled={!inputValue.trim() || isSubmitting}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-primary-500 dark:hover:bg-primary-600"
+              aria-label="Send"
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+          <p className="mt-1.5 text-center text-xs text-slate-400 dark:text-slate-600">
+            Enter to send · Shift+Enter for new line
+          </p>
+        </div>
       </div>
     </PageContainer>
   )
 }
 
-// Main page component with Suspense boundary for useSearchParams
 export default function AskPage() {
   return (
-    <Suspense fallback={
-      <PageContainer title="Ask Curio">
-        <div className="flex items-center justify-center pt-12">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-        </div>
-      </PageContainer>
-    }>
+    <Suspense
+      fallback={
+        <PageContainer title="Ask Curio">
+          <div className="flex items-center justify-center pt-12">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+          </div>
+        </PageContainer>
+      }
+    >
       <AskPageContent />
     </Suspense>
   )
