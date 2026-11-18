@@ -6,7 +6,8 @@ import { alcoholHistoryBlueprint } from '@/lib/blueprint/samples/alcohol-history
 // Use service role for seeding
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { db: { schema: 'curio' } }
 )
 
 // Course configurations
