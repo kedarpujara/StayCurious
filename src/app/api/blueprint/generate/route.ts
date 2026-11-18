@@ -17,7 +17,8 @@ export const maxDuration = 60
 // Use service role for creating catalog courses
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { db: { schema: 'curio' } }
 )
 
 interface GenerateRequest {
